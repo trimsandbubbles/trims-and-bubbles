@@ -168,10 +168,28 @@ model Client {
   pets           Pet[]
   appointments   Appointment[]
   orders         Order[]
+  messages       ClientMessage[]
   createdAt      DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
 
   @@map("client")
+}
+
+/// A short message from the owner to a client, shown in the client's portal
+/// (and emailed too once RESEND_API_KEY is configured).
+model ClientMessage {
+  id           String    @id @default(cuid())
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  subject      String?
+  body         String
+  sentByUserId String?
+  readAt       DateTime? @db.Timestamptz(3)
+  emailedAt    DateTime? @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([clientId, createdAt])
+  @@map("client_message")
 }
 
 model Pet {
@@ -204,6 +222,7 @@ model Service {
   durationMinutes Int
   displayOrder    Int                @default(0)
   active          Boolean            @default(true)
+  imageUrl        String?
   prices          ServicePrice[]
   appointments    Appointment[]      @relation("PrimaryService")
   addOnFor        AppointmentAddOn[]
@@ -288,6 +307,8 @@ model AppointmentPhoto {
 }
 
 /// Recurring weekly hours (e.g. Tue-Sat 9-5). One row per day of week.
+/// A day can now have SEVERAL rows — one per open window — so the owner can
+/// take a mid-day break (e.g. 09:00-12:00 and 15:00-20:00 on the same day).
 model AvailabilityRule {
   id        String  @id @default(cuid())
   dayOfWeek Int // 0 = Sunday .. 6 = Saturday
@@ -295,7 +316,7 @@ model AvailabilityRule {
   endTime   String // "17:00"
   isActive  Boolean @default(true)
 
-  @@unique([dayOfWeek])
+  @@index([dayOfWeek])
   @@map("availability_rule")
 }
 
@@ -365,6 +386,8 @@ model BusinessSettings {
   credentialInstitution String?
   instagramUrl         String?
   facebookUrl          String?
+  tiktokUrl            String?
+  youtubeUrl           String?
   updatedAt         DateTime @updatedAt @db.Timestamptz(3)
 
   @@map("business_settings")

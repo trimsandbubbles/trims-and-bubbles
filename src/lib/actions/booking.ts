@@ -153,8 +153,12 @@ export async function createBooking(rawInput: BookingInput): Promise<BookingResu
   const addOnTotalCents = addOns.reduce((sum, a) => sum + (priceForAddOn(a.id)?.priceCents ?? 0), 0);
   const totalPriceCents = (priceRow.isOnInspection ? 0 : priceRow.priceCents) + addOnTotalCents;
   const settings = await getBusinessSettings();
-  const depositPriceCents = priceRow.isOnInspection ? null : Math.round((totalPriceCents * settings.depositPercentage) / 100);
-  const requiresDeposit = !priceRow.isOnInspection && !!depositPriceCents && depositPriceCents > 0;
+  const rawDepositCents = priceRow.isOnInspection ? 0 : Math.round((totalPriceCents * settings.depositPercentage) / 100);
+  // Store null (not 0) when nothing is owed upfront — on-inspection pricing OR a
+  // 0% deposit (the owner has deposits turned off) — so client-facing pages
+  // never render a "$0 deposit" row.
+  const depositPriceCents = rawDepositCents > 0 ? rawDepositCents : null;
+  const requiresDeposit = !priceRow.isOnInspection && depositPriceCents !== null;
 
   // Fail closed in production: if a deposit is owed but online payment isn't
   // configured (e.g. a missing/typo'd STRIPE_SECRET_KEY), do NOT silently

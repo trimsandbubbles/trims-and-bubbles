@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CalendarCheck, Car, ShieldCheck, Heart, GraduationCap, Award, BadgeCheck, ArrowRight } from "lucide-react";
@@ -74,7 +73,7 @@ export default async function AboutPage() {
                 sizes="144px"
               />
             </div>
-            <p className="kicker mt-6">Our story</p>
+            <EditableText contentKey="about.story.kicker" as="p" className="kicker mt-6">Our story</EditableText>
             <EditableText
               contentKey="about.story.heading"
               as="h1"
@@ -83,13 +82,9 @@ export default async function AboutPage() {
               Ten years of dogs in our home — now in the tub.
             </EditableText>
             <div className="mt-6 space-y-4 text-lg leading-relaxed text-muted-foreground">
-              <p className="text-pretty">
-                Trims &amp; Bubbles grew out of {businessConfig.credentials.yearsExperience} of
-                in-home dog boarding, right here in {businessConfig.location.suburb}. Over those
-                years we&apos;ve looked after every kind of dog — nervous rescues, bouncy puppies,
-                senior dogs who just want a quiet corner — and learned how to make each one feel
-                at home.
-              </p>
+              <EditableText contentKey="about.story.p1" as="p" className="text-pretty">
+                {`Trims & Bubbles grew out of ${businessConfig.credentials.yearsExperience} of in-home dog boarding, right here in ${businessConfig.location.suburb}. Over those years we've looked after every kind of dog — nervous rescues, bouncy puppies, senior dogs who just want a quiet corner — and learned how to make each one feel at home.`}
+              </EditableText>
               <EditableText contentKey="about.story.p2" as="p" className="text-pretty">
                 Now we&apos;re bringing that same patient, unhurried care to washing, grooming and
                 trimming. Same calm hands, same love of dogs — with a professional groom at the
@@ -98,8 +93,9 @@ export default async function AboutPage() {
             </div>
           </div>
           <div className="relative mx-auto aspect-4/5 w-full max-w-md overflow-hidden rounded-sm lg:max-w-none">
-            <Image
-              src="/seed-images/gallery-poodle-standard.jpg"
+            <EditableImage
+              contentKey="about.story.image"
+              fallbackSrc="/seed-images/gallery-poodle-standard.jpg"
               alt="A calm, freshly groomed dog at Trims and Bubbles"
               fill
               priority
@@ -115,7 +111,7 @@ export default async function AboutPage() {
         <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
           <div className="flex items-center gap-3">
             <span className="h-px w-8 bg-accent-solid" />
-            <span className="text-xs font-bold uppercase tracking-[0.22em] text-accent-solid">Credentials</span>
+            <EditableText contentKey="about.credentials.kicker" as="span" className="text-xs font-bold uppercase tracking-[0.22em] text-accent-solid">Credentials</EditableText>
           </div>
           <EditableText
             contentKey="about.credentials.heading"
@@ -129,9 +125,9 @@ export default async function AboutPage() {
             <div className="border-t border-primary-foreground/20 pt-6">
               <GraduationCap className="h-8 w-8 text-accent-solid" />
               <h3 className="mt-4 text-xl font-extrabold">{qualification}</h3>
-              <p className="mt-2 text-lg font-semibold">
-                A recognised dog grooming qualification{institution ? ` — ${institution}` : ""}.
-              </p>
+              <EditableText contentKey="about.credentials.qualification.explainer" as="p" className="mt-2 text-lg font-semibold">
+                {`A recognised dog grooming qualification${institution ? ` — ${institution}` : ""}.`}
+              </EditableText>
               <EditableText
                 contentKey="about.credentials.qualification.text"
                 as="p"

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getBusinessSettings } from "@/lib/services-data";
 import {
   BUSINESS_TIMEZONE,
+  getDaySlotsWithStatus,
   getOpenSlotsForDate,
   isSlotStillOpen,
   type BusyInterval,
@@ -22,10 +23,15 @@ export function sydneyCalendarDayRange(dateStr: string): { start: Date; end: Dat
 }
 
 export async function getWeeklyHoursMap(): Promise<Record<number, DayHours>> {
-  const rules = await prisma.availabilityRule.findMany();
+  // A day may have several rows — one per open window (e.g. a mid-day break).
+  // Inactive rows are remembered times for a closed day and contribute nothing.
+  const rules = await prisma.availabilityRule.findMany({
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  });
   const map: Record<number, DayHours> = {};
   for (const rule of rules) {
-    map[rule.dayOfWeek] = rule.isActive ? { startTime: rule.startTime, endTime: rule.endTime } : null;
+    if (!rule.isActive) continue;
+    (map[rule.dayOfWeek] ??= []).push({ startTime: rule.startTime, endTime: rule.endTime });
   }
   return map;
 }
@@ -85,6 +91,29 @@ export async function getAvailableSlotsForDate(
   ]);
 
   return getOpenSlotsForDate({
+    dateStr,
+    durationMinutes,
+    weeklyHours,
+    exception,
+    busy,
+    bufferMinutes: settings.bufferMinutes,
+  });
+}
+
+/** Open AND booked grid slots for a date — the picker shows booked ones
+ * greyed-out so clients can see why a time is unavailable. */
+export async function getSlotsWithStatusForDate(
+  dateStr: string,
+  durationMinutes: number,
+): Promise<{ open: OpenSlot[]; booked: OpenSlot[] }> {
+  const [weeklyHours, exception, settings, busy] = await Promise.all([
+    getWeeklyHoursMap(),
+    getExceptionForDate(dateStr),
+    getBusinessSettings(),
+    getBusyIntervalsForDate(dateStr),
+  ]);
+
+  return getDaySlotsWithStatus({
     dateStr,
     durationMinutes,
     weeklyHours,

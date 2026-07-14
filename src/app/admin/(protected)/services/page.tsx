@@ -25,6 +25,7 @@ export default async function AdminServicesPage() {
     category: s.category,
     durationMinutes: s.durationMinutes,
     active: s.active,
+    imageUrl: s.imageUrl,
     prices: s.prices
       .filter((p) => p.sizeBand !== "XL")
       .map((p) => ({

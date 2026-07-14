@@ -175,7 +175,7 @@ export default async function PortalAppointmentDetailPage({
               <dt>Total</dt>
               <dd>{formatCents(apt.totalPriceCents)}</dd>
             </div>
-            {apt.depositPriceCents != null && (
+            {apt.depositPriceCents != null && apt.depositPriceCents > 0 && (
               <div className="flex justify-between">
                 <dt>Deposit required</dt>
                 <dd>{formatCents(apt.depositPriceCents)}</dd>

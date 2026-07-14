@@ -13,8 +13,12 @@ export type BusyInterval = {
   endAt: Date;
 };
 
-/** Open/close wall-clock times ("09:00"/"17:00") for a single day, or null if closed. */
-export type DayHours = { startTime: string; endTime: string } | null;
+/** One open window of wall-clock times ("09:00"/"17:00"). */
+export type DayWindow = { startTime: string; endTime: string };
+
+/** A day's open windows. A day may have SEVERAL windows (e.g. 09:00-12:00 and
+ * 15:00-20:00 with a mid-day break). Empty array or null = closed. */
+export type DayHours = DayWindow[] | null;
 
 export type DateException = {
   type: "CLOSED" | "CUSTOM_HOURS";
@@ -59,15 +63,15 @@ function zonedWallClockToInstant(dateStr: string, hhmm: string): Date {
   return fromZonedTime(`${dateStr}T${hhmm}:00`, BUSINESS_TIMEZONE);
 }
 
-function resolveDayHours(inputs: Pick<AvailabilityInputs, "dateStr" | "weeklyHours" | "exception">): DayHours {
+function resolveDayHours(inputs: Pick<AvailabilityInputs, "dateStr" | "weeklyHours" | "exception">): DayWindow[] {
   if (inputs.exception) {
-    if (inputs.exception.type === "CLOSED") return null;
+    if (inputs.exception.type === "CLOSED") return [];
     if (inputs.exception.customStartTime && inputs.exception.customEndTime) {
-      return { startTime: inputs.exception.customStartTime, endTime: inputs.exception.customEndTime };
+      return [{ startTime: inputs.exception.customStartTime, endTime: inputs.exception.customEndTime }];
     }
   }
   const dow = dayOfWeekFor(inputs.dateStr);
-  return inputs.weeklyHours[dow] ?? null;
+  return inputs.weeklyHours[dow] ?? [];
 }
 
 function intervalsOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
@@ -84,17 +88,24 @@ function intervalsOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): b
  * condition, or a future bug lets one through here.
  */
 export function getOpenSlotsForDate(inputs: AvailabilityInputs): OpenSlot[] {
+  return getDaySlotsWithStatus(inputs).open;
+}
+
+/**
+ * Like getOpenSlotsForDate, but also reports which grid positions were lost to
+ * an existing booking/block — so the picker can show clients WHY a time isn't
+ * offered ("Booked") instead of silently omitting it. `booked` contains only
+ * slots that would otherwise have been offered (inside an open window, past
+ * the lead time); times outside opening hours are simply absent.
+ */
+export function getDaySlotsWithStatus(inputs: AvailabilityInputs): { open: OpenSlot[]; booked: OpenSlot[] } {
   const bufferMinutes = inputs.bufferMinutes ?? 15;
   const slotIntervalMinutes = inputs.slotIntervalMinutes ?? 30;
   const minLeadMinutes = inputs.minLeadMinutes ?? 60;
   const now = inputs.now ?? new Date();
 
-  const hours = resolveDayHours(inputs);
-  if (!hours) return [];
-
-  const dayStart = zonedWallClockToInstant(inputs.dateStr, hours.startTime);
-  const dayEnd = zonedWallClockToInstant(inputs.dateStr, hours.endTime);
-  if (dayEnd <= dayStart) return [];
+  const windows = resolveDayHours(inputs);
+  if (windows.length === 0) return { open: [], booked: [] };
 
   // Busy ranges get a trailing buffer added so consecutive bookings keep a
   // gap — the DB constraint (no buffer) is the hard rule; this is the softer
@@ -108,20 +119,30 @@ export function getOpenSlotsForDate(inputs: AvailabilityInputs): OpenSlot[] {
   const durationMs = inputs.durationMinutes * 60_000;
   const stepMs = slotIntervalMinutes * 60_000;
 
-  const slots: OpenSlot[] = [];
-  for (let start = dayStart.getTime(); start + durationMs <= dayEnd.getTime(); start += stepMs) {
-    const slotStart = new Date(start);
-    const slotEnd = new Date(start + durationMs);
+  const open: OpenSlot[] = [];
+  const booked: OpenSlot[] = [];
+  // Each window is its own slot grid: a booking must START and FINISH within
+  // one window, so a mid-day break is never overlapped by an appointment.
+  for (const w of windows) {
+    const windowStart = zonedWallClockToInstant(inputs.dateStr, w.startTime);
+    const windowEnd = zonedWallClockToInstant(inputs.dateStr, w.endTime);
+    if (windowEnd <= windowStart) continue;
 
-    if (slotStart < earliestStart) continue;
+    for (let start = windowStart.getTime(); start + durationMs <= windowEnd.getTime(); start += stepMs) {
+      const slotStart = new Date(start);
+      const slotEnd = new Date(start + durationMs);
 
-    const clashes = bufferedBusy.some((b) => intervalsOverlap(slotStart, slotEnd, b.startAt, b.endAt));
-    if (clashes) continue;
+      if (slotStart < earliestStart) continue;
 
-    slots.push({ startAt: slotStart, endAt: slotEnd });
+      const clashes = bufferedBusy.some((b) => intervalsOverlap(slotStart, slotEnd, b.startAt, b.endAt));
+      (clashes ? booked : open).push({ startAt: slotStart, endAt: slotEnd });
+    }
   }
 
-  return slots;
+  const byStart = (a: OpenSlot, b: OpenSlot) => a.startAt.getTime() - b.startAt.getTime();
+  open.sort(byStart);
+  booked.sort(byStart);
+  return { open, booked };
 }
 
 /** True if a candidate [startAt, endAt) range is still free given the same

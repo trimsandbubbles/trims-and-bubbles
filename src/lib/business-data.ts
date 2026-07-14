@@ -16,6 +16,8 @@ export type BusinessDetails = {
   credentialInstitution: string;
   instagramUrl: string;
   facebookUrl: string;
+  tiktokUrl: string;
+  youtubeUrl: string;
   depositPercentage: number;
   bufferMinutes: number;
   // One-time setup, not owner-editable from Settings — always from config.
@@ -50,6 +52,8 @@ async function loadSettings() {
       credentialInstitution: null,
       instagramUrl: null,
       facebookUrl: null,
+      tiktokUrl: null,
+      youtubeUrl: null,
       updatedAt: new Date(),
     }
   );
@@ -70,6 +74,9 @@ export async function getBusinessDetails(): Promise<BusinessDetails> {
     credentialInstitution: withFallback(settings.credentialInstitution, businessConfig.credentials.issuingInstitution),
     instagramUrl: withFallback(settings.instagramUrl, businessConfig.contact.instagram),
     facebookUrl: withFallback(settings.facebookUrl, businessConfig.contact.facebook),
+    // No config fallback exists for these two — blank means "not set".
+    tiktokUrl: withFallback(settings.tiktokUrl, ""),
+    youtubeUrl: withFallback(settings.youtubeUrl, ""),
     depositPercentage: settings.depositPercentage,
     bufferMinutes: settings.bufferMinutes,
     legalName: businessConfig.legalName,

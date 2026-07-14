@@ -78,7 +78,7 @@ export default async function ServicesPage() {
           <Card key={service.id} className="pt-0">
             <div className="relative aspect-4/3 w-full overflow-hidden rounded-t-md">
               <Image
-                src={SERVICE_PHOTOS[service.slug] ?? "/service-images/service-4.jpg"}
+                src={service.imageUrl ?? SERVICE_PHOTOS[service.slug] ?? "/service-images/service-4.jpg"}
                 alt={`${service.name} grooming service`}
                 fill
                 className="object-cover"

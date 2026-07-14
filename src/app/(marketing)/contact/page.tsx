@@ -3,6 +3,7 @@ import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { ContactForm } from "@/components/contact-form";
 import { prisma } from "@/lib/prisma";
 import { getBusinessDetails } from "@/lib/business-data";
+import { groupWeeklyRules } from "@/lib/weekly-hours";
 import { EditableText } from "@/components/site-content/editable-text";
 
 export const metadata: Metadata = {
@@ -69,14 +70,16 @@ export default async function ContactPage() {
               <p className="font-medium">Hours</p>
             </div>
             <div className="overflow-hidden rounded-xl border border-border">
-              {rules.map((rule) => (
+              {groupWeeklyRules(rules).map((day) => (
                 <div
-                  key={rule.dayOfWeek}
+                  key={day.dayOfWeek}
                   className="flex items-center justify-between border-b border-border px-4 py-2.5 text-sm last:border-b-0"
                 >
-                  <span>{DAY_LABELS[rule.dayOfWeek]}</span>
-                  <span className={rule.isActive ? "" : "text-muted-foreground"}>
-                    {rule.isActive ? `${rule.startTime} – ${rule.endTime}` : "Closed"}
+                  <span>{DAY_LABELS[day.dayOfWeek]}</span>
+                  <span className={day.isActive ? "" : "text-muted-foreground"}>
+                    {day.isActive
+                      ? day.windows.map((w) => `${w.startTime} – ${w.endTime}`).join(" & ")
+                      : "Closed"}
                   </span>
                 </div>
               ))}

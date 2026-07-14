@@ -44,3 +44,6 @@ next-env.d.ts
 
 # runtime-uploaded photos (local disk storage in dev — see AppointmentPhoto)
 /public/uploads
+
+.vercel
+.env*

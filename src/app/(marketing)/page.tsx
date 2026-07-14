@@ -62,10 +62,9 @@ export default async function HomePage() {
               accentClassName="text-accent-solid"
               className="mt-6 text-5xl font-black leading-[1.05] text-balance sm:text-6xl"
             >{"Happy dogs,\nclean paws &\nwagging tails."}</EditableText>
-            <p className="mt-6 max-w-md text-lg leading-relaxed text-muted-foreground text-pretty">
-              {businessConfig.tagline}. Gentle handling, unhurried appointments, and a groomer
-              who has spent {businessConfig.credentials.yearsExperience} caring for dogs.
-            </p>
+            <EditableText contentKey="home.hero.tagline" as="p" className="mt-6 max-w-md text-lg leading-relaxed text-muted-foreground text-pretty">
+              {`${businessConfig.tagline}. Gentle handling, unhurried appointments, and a groomer who has spent ${businessConfig.credentials.yearsExperience} caring for dogs.`}
+            </EditableText>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <Button size="lg" render={<Link href="/book" />}>
                 Book an appointment <ArrowRight />
@@ -75,12 +74,9 @@ export default async function HomePage() {
               </Button>
             </div>
             {cheapestFullGroom && (
-              <p className="mt-7 text-sm text-muted-foreground">
-                Full grooms from{" "}
-                <span className="font-extrabold text-foreground">{formatCents(cheapestFullGroom.priceCents)}</span>
-                {" · Nail trim & ear clean from "}
-                <span className="font-extrabold text-foreground">$15</span>
-              </p>
+              <EditableText contentKey="home.hero.priceLine" as="p" className="mt-7 text-sm text-muted-foreground">
+                {`Full grooms from ${formatCents(cheapestFullGroom.priceCents)} · Nail trim & ear clean from $15`}
+              </EditableText>
             )}
           </div>
 
@@ -120,7 +116,7 @@ export default async function HomePage() {
         <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {highlightServices.map((service) => {
             const Icon = SERVICE_ICONS[service.slug] ?? Sparkles;
-            const photo = SERVICE_PHOTOS[service.slug] ?? "/service-images/service-4.jpg";
+            const photo = service.imageUrl ?? SERVICE_PHOTOS[service.slug] ?? "/service-images/service-4.jpg";
             const fromPrice = service.prices
               .filter((p) => !p.isOnInspection)
               .sort((a, b) => a.priceCents - b.priceCents)[0];
@@ -155,10 +151,10 @@ export default async function HomePage() {
       {/* ---------------- Story / trust strip ---------------- */}
       <section className="border-y border-border bg-secondary">
         <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-          <p className="kicker justify-center">{businessConfig.credentials.yearsExperience} of care</p>
-          <p className="mt-6 text-balance text-2xl font-extrabold leading-snug sm:text-3xl">
+          <EditableText contentKey="home.trust.kicker" as="p" className="kicker justify-center">{`${businessConfig.credentials.yearsExperience} of care`}</EditableText>
+          <EditableText contentKey="home.trust.statement" as="p" className="mt-6 text-balance text-2xl font-extrabold leading-snug sm:text-3xl">
             {`After ${businessConfig.credentials.yearsExperience} welcoming dogs into our home for boarding, we're bringing that same care to washing, grooming & trimming.`}
-          </p>
+          </EditableText>
           <Link
             href="/about"
             className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-accent-solid hover:underline underline-offset-4"

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { CalendarDays, Dog, ImageIcon, PawPrint } from "lucide-react";
+import { CalendarDays, Dog, ImageIcon, MessageSquare, PawPrint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentSession } from "@/lib/session";
@@ -26,7 +26,7 @@ export default async function PortalDashboardPage() {
     );
   }
 
-  const [petCount, nextAppointment, latestPhoto] = await Promise.all([
+  const [petCount, nextAppointment, latestPhoto, unreadMessages] = await Promise.all([
     prisma.pet.count({ where: { clientId: client.id, archivedAt: null } }),
     prisma.appointment.findFirst({
       where: { clientId: client.id, startAt: { gte: new Date() }, status: { in: ["CONFIRMED", "PENDING_PAYMENT", "IN_PROGRESS"] } },
@@ -38,12 +38,26 @@ export default async function PortalDashboardPage() {
       orderBy: { createdAt: "desc" },
       include: { appointment: { include: { pet: true } } },
     }),
+    prisma.clientMessage.count({ where: { clientId: client.id, readAt: null } }),
   ]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">My Account</h1>
       <p className="mt-1 text-muted-foreground">A quick look at what&apos;s coming up.</p>
+
+      {unreadMessages > 0 && (
+        <Link href="/portal/messages" className="mt-6 block">
+          <Card className="border-primary/40 bg-primary/5 transition-colors hover:border-primary/60">
+            <CardContent className="flex items-center gap-3 py-4">
+              <MessageSquare className="h-5 w-5 shrink-0 text-primary" />
+              <p className="text-sm font-medium">
+                You have {unreadMessages} unread message{unreadMessages === 1 ? "" : "s"} from Trims &amp; Bubbles
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">

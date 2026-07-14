@@ -70,17 +70,21 @@ export default async function GalleryPage() {
 
       <div className="mt-10 space-y-14">
         {groups.length === 0 && dogFriendsItems.length === 0 && (
-          <p className="text-muted-foreground">Photos are on their way — check back soon.</p>
+          <EditableText contentKey="gallery.empty" as="p" className="text-muted-foreground">
+            Photos are on their way — check back soon.
+          </EditableText>
         )}
 
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">{DOG_FRIENDS_GROUP_LABEL}</h2>
+          <EditableText contentKey="gallery.dogFriends.heading" as="h2" className="text-xl font-semibold tracking-tight">
+            {DOG_FRIENDS_GROUP_LABEL}
+          </EditableText>
           {dogFriendsItems.length === 0 ? (
             <div className="mt-5 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-12 text-center text-muted-foreground">
               <PawPrint className="h-6 w-6" aria-hidden />
-              <p className="text-sm text-pretty">
+              <EditableText contentKey="gallery.dogFriends.empty" as="p" className="text-sm text-pretty">
                 Photos of the dogs we&apos;ve cared for over the years are coming soon.
-              </p>
+              </EditableText>
             </div>
           ) : (
             <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

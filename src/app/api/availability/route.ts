@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAvailableSlotsForDate, totalDurationMinutes } from "@/lib/availability-data";
+import { getSlotsWithStatusForDate, totalDurationMinutes } from "@/lib/availability-data";
 
 const querySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
@@ -47,9 +47,18 @@ export async function GET(request: NextRequest) {
     addOns.map((a) => a.durationMinutes),
   );
 
-  const slots = await getAvailableSlotsForDate(date, duration);
+  const { open, booked } = await getSlotsWithStatusForDate(date, duration);
+
+  const toDTO = (s: { startAt: Date; endAt: Date }) => ({
+    startAt: s.startAt.toISOString(),
+    endAt: s.endAt.toISOString(),
+  });
 
   return NextResponse.json({
-    slots: slots.map((s) => ({ startAt: s.startAt.toISOString(), endAt: s.endAt.toISOString() })),
+    slots: open.map(toDTO),
+    // Times lost to an existing booking/block — shown greyed-out ("Booked") so
+    // clients can see why a time isn't offered. Bare start/end times only; no
+    // client or pet details are ever exposed here.
+    booked: booked.map(toDTO),
   });
 }

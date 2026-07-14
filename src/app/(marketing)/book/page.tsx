@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getActiveServicesWithPricing } from "@/lib/services-data";
+import { getActiveServicesWithPricing, getBusinessSettings } from "@/lib/services-data";
 import { getCurrentSession } from "@/lib/session";
 import { getMyPets } from "@/lib/actions/client-profile";
 import { prisma } from "@/lib/prisma";
@@ -11,11 +11,12 @@ import { AvailabilityGlance } from "@/components/booking/availability-glance";
 export const metadata: Metadata = { title: "Book an Appointment" };
 
 export default async function BookPage({ searchParams }: { searchParams: Promise<{ cancelled?: string }> }) {
-  const [{ cancelled }, allServices, session, rules] = await Promise.all([
+  const [{ cancelled }, allServices, session, rules, settings] = await Promise.all([
     searchParams,
     getActiveServicesWithPricing(),
     getCurrentSession(),
     prisma.availabilityRule.findMany(),
+    getBusinessSettings(),
   ]);
 
   // Sizes are SMALL/MEDIUM/LARGE now (XL was removed from the offering). The DB
@@ -53,6 +54,7 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
         initialPets={pets}
         closedWeekdays={closedWeekdays}
         stripeEnabled={isStripeConfigured()}
+        depositPercentage={settings.depositPercentage}
         checkoutCancelled={cancelled === "1"}
       />
     </div>

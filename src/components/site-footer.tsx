@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Phone, Mail, MapPin } from "lucide-react";
-import { InstagramIcon, FacebookIcon } from "@/components/social-icons";
+import { InstagramIcon, FacebookIcon, TiktokIcon, YoutubeIcon } from "@/components/social-icons";
 import { businessConfig } from "@/config/business";
 import { getBusinessDetails } from "@/lib/business-data";
+import { EditableText } from "@/components/site-content/editable-text";
 
 export async function SiteFooter() {
   const year = new Date().getFullYear();
@@ -17,7 +18,9 @@ export async function SiteFooter() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.svg" alt="Trims & Bubbles" className="h-40 w-auto" />
             </div>
-            <p className="mt-3 text-sm text-muted-foreground">{businessConfig.tagline}</p>
+            <EditableText contentKey="footer.tagline" as="p" className="mt-3 text-sm text-muted-foreground">
+              {`${businessConfig.tagline}`}
+            </EditableText>
           </div>
 
           <div>
@@ -52,7 +55,7 @@ export async function SiteFooter() {
                 <MapPin className="h-4 w-4 shrink-0" /> {businessConfig.location.region}
               </li>
             </ul>
-            {(business.instagramUrl || business.facebookUrl) && (
+            {(business.instagramUrl || business.facebookUrl || business.tiktokUrl || business.youtubeUrl) && (
               <div className="mt-4 flex gap-3">
                 {business.instagramUrl && (
                   <Link
@@ -74,6 +77,28 @@ export async function SiteFooter() {
                     className="text-muted-foreground hover:text-foreground"
                   >
                     <FacebookIcon className="h-5 w-5" />
+                  </Link>
+                )}
+                {business.tiktokUrl && (
+                  <Link
+                    href={business.tiktokUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="TikTok"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <TiktokIcon className="h-5 w-5" />
+                  </Link>
+                )}
+                {business.youtubeUrl && (
+                  <Link
+                    href={business.youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="YouTube"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <YoutubeIcon className="h-5 w-5" />
                   </Link>
                 )}
               </div>

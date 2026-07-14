@@ -20,8 +20,6 @@ export function BusinessSettingsForm({
     serviceAreaNote: string | null;
     credentialTitle: string | null;
     credentialInstitution: string | null;
-    instagramUrl: string | null;
-    facebookUrl: string | null;
   };
 }) {
   const [businessName, setBusinessName] = useState(initial.businessName);
@@ -33,8 +31,6 @@ export function BusinessSettingsForm({
   const [serviceAreaNote, setServiceAreaNote] = useState(initial.serviceAreaNote ?? "");
   const [credentialTitle, setCredentialTitle] = useState(initial.credentialTitle ?? "");
   const [credentialInstitution, setCredentialInstitution] = useState(initial.credentialInstitution ?? "");
-  const [instagramUrl, setInstagramUrl] = useState(initial.instagramUrl ?? "");
-  const [facebookUrl, setFacebookUrl] = useState(initial.facebookUrl ?? "");
   const [pending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent) {
@@ -50,8 +46,6 @@ export function BusinessSettingsForm({
         serviceAreaNote: serviceAreaNote || undefined,
         credentialTitle: credentialTitle || undefined,
         credentialInstitution: credentialInstitution || undefined,
-        instagramUrl: instagramUrl || undefined,
-        facebookUrl: facebookUrl || undefined,
       });
       if (result.status === "success") {
         toast.success("Settings saved");
@@ -89,6 +83,7 @@ export function BusinessSettingsForm({
             onChange={(e) => setDepositPercentage(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">Charged upfront when a client books, taken off the total at the end.</p>
+          <p className="text-xs text-muted-foreground">Set to 0 if you don&apos;t want to take deposits — clients will book without paying anything upfront.</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="buffer-minutes">Buffer between bookings (minutes)</Label>
@@ -142,33 +137,6 @@ export function BusinessSettingsForm({
               value={credentialInstitution}
               onChange={(e) => setCredentialInstitution(e.target.value)}
               placeholder="e.g. TAFE NSW"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-border pt-4">
-        <h2 className="text-sm font-semibold">Social links</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">Shown as icons in the site footer.</p>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="instagram-url">Instagram link (optional)</Label>
-            <Input
-              id="instagram-url"
-              type="url"
-              value={instagramUrl}
-              onChange={(e) => setInstagramUrl(e.target.value)}
-              placeholder="https://instagram.com/yourbusiness"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="facebook-url">Facebook link (optional)</Label>
-            <Input
-              id="facebook-url"
-              type="url"
-              value={facebookUrl}
-              onChange={(e) => setFacebookUrl(e.target.value)}
-              placeholder="https://facebook.com/yourbusiness"
             />
           </div>
         </div>

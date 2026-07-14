@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { getOpenSlotsForDate, isSlotStillOpen, type DayHours } from "./availability";
+import { getDaySlotsWithStatus, getOpenSlotsForDate, isSlotStillOpen, type DayHours } from "./availability";
 
 // Tue-Sat 9-5, Sun/Mon closed — mirrors the app's seeded default hours.
+// Days now hold an ARRAY of open windows (multiple = a break in the day).
 const WEEKLY_HOURS: Record<number, DayHours> = {
   0: null, // Sunday
   1: null, // Monday
-  2: { startTime: "09:00", endTime: "17:00" }, // Tuesday
-  3: { startTime: "09:00", endTime: "17:00" },
-  4: { startTime: "09:00", endTime: "17:00" },
-  5: { startTime: "09:00", endTime: "17:00" },
-  6: { startTime: "09:00", endTime: "17:00" },
+  2: [{ startTime: "09:00", endTime: "17:00" }], // Tuesday
+  3: [{ startTime: "09:00", endTime: "17:00" }],
+  4: [{ startTime: "09:00", endTime: "17:00" }],
+  5: [{ startTime: "09:00", endTime: "17:00" }],
+  6: [{ startTime: "09:00", endTime: "17:00" }],
 };
 
 // Fixed "now" far enough before every test date that minLeadMinutes never
@@ -185,6 +186,84 @@ describe("getOpenSlotsForDate", () => {
     });
     // Exactly one hour available for a 60-min service at 60-min granularity => exactly 1 slot.
     expect(slots).toHaveLength(1);
+  });
+
+  it("supports multiple windows in a day and never offers a slot spanning the break", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 90,
+      // 09:00-12:00, break, 15:00-20:00 — the owner's mid-day-break scenario.
+      weeklyHours: { ...WEEKLY_HOURS, 2: [{ startTime: "09:00", endTime: "12:00" }, { startTime: "15:00", endTime: "20:00" }] },
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+
+    // Morning window 180 min: starts 09:00..10:30 (4 slots).
+    // Evening window 300 min: starts 15:00..18:30 (8 slots). Total 12.
+    expect(slots).toHaveLength(12);
+    // No slot may START in the morning and END after 12:00 (i.e. cross the break):
+    const noon = new Date("2026-07-14T02:00:00.000Z"); // 12:00 AEST
+    const three = new Date("2026-07-14T05:00:00.000Z"); // 15:00 AEST
+    expect(slots.some((s) => s.startAt < noon && s.endAt > noon)).toBe(false);
+    // Nothing is offered inside the break itself:
+    expect(slots.some((s) => s.startAt >= noon && s.startAt < three)).toBe(false);
+    // The last morning slot ends exactly at the break:
+    expect(slots.some((s) => s.endAt.toISOString() === noon.toISOString())).toBe(true);
+    // Results are time-ordered across windows:
+    const times = slots.map((s) => s.startAt.getTime());
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+  });
+
+  it("a service too long for the morning window is still offered in the longer evening window", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 240, // 4h — doesn't fit 09:00-12:00, fits 15:00-20:00
+      weeklyHours: { ...WEEKLY_HOURS, 2: [{ startTime: "09:00", endTime: "12:00" }, { startTime: "15:00", endTime: "20:00" }] },
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots.length).toBeGreaterThan(0);
+    expect(slots.every((s) => s.startAt >= new Date("2026-07-14T05:00:00.000Z"))).toBe(true); // all >= 15:00 AEST
+  });
+});
+
+describe("getDaySlotsWithStatus", () => {
+  it("classifies grid times lost to an existing booking as booked, not hidden", () => {
+    const { open, booked } = getDaySlotsWithStatus({
+      dateStr: TUESDAY,
+      durationMinutes: 30,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [
+        {
+          startAt: new Date("2026-07-14T00:00:00.000Z"), // 10:00 AEST
+          endAt: new Date("2026-07-14T01:00:00.000Z"), // 11:00 AEST
+        },
+      ],
+      bufferMinutes: 0,
+      now: FAR_PAST_NOW,
+    });
+
+    // 10:00 and 10:30 clash → booked; everything else on the 9-5 grid is open.
+    expect(booked.map((s) => s.startAt.toISOString())).toEqual([
+      "2026-07-14T00:00:00.000Z",
+      "2026-07-14T00:30:00.000Z",
+    ]);
+    expect(open.some((s) => s.startAt.toISOString() === "2026-07-13T23:30:00.000Z")).toBe(true); // 09:30 open
+    expect(open.some((s) => s.startAt.toISOString() === "2026-07-14T01:00:00.000Z")).toBe(true); // 11:00 open again
+    // open + booked together cover the whole uninterrupted grid.
+    expect(open.length + booked.length).toBe(16);
+  });
+
+  it("returns empty lists on a closed day (no phantom booked entries)", () => {
+    const { open, booked } = getDaySlotsWithStatus({
+      dateStr: SUNDAY,
+      durationMinutes: 30,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [{ startAt: new Date("2026-07-12T00:00:00.000Z"), endAt: new Date("2026-07-12T01:00:00.000Z") }],
+      now: FAR_PAST_NOW,
+    });
+    expect(open).toEqual([]);
+    expect(booked).toEqual([]);
   });
 });
 

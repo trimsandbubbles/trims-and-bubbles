@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/portal", label: "Dashboard" },
   { href: "/portal/pets", label: "My Dogs" },
   { href: "/portal/appointments", label: "Appointments" },
+  { href: "/portal/messages", label: "Messages" },
   { href: "/portal/payments", label: "Payments" },
   { href: "/portal/profile", label: "Profile" },
   { href: "/store", label: "Shop" },

@@ -31,6 +31,13 @@ account is connected — see the note at the bottom.)*
 **Menu → Payments** shows what's collected and what's owed. On an appointment you can record a
 payment someone gave you in person. (Refunds are owner-only.)
 
+### 💬 Send a message to a client
+**Menu → Clients → tap the client → the Messages box.** Type a subject (optional) and your
+message, then tap **Send message**. The client sees it straight away in their own account, under
+**Messages**. Once your email account is connected (see the note at the bottom), the message is
+emailed to them too. *(This is separate from the private notes higher up the page — those stay
+between you and staff; messages are meant for the client to read.)*
+
 ## Your online shop
 
 ### 🛒 Add, edit, or remove a product
@@ -48,11 +55,37 @@ it. Changes show on your shop straight away — no waiting on anyone.
 Gallery page. You can also flip on **"Show on public gallery"** for photos you took during an
 appointment. Remove any photo with the bin icon (it confirms first).
 
+## Editing the words and photos on your website
+
+### ✏️ Change any text or photo on your main pages
+Open any of your main pages — **Home, About, Services, Contact, or Gallery** — while you're signed
+in, and tap **"Edit page text &amp; photos"** at the top. A pencil appears next to every heading and
+paragraph, and a **"Change photo"** button on every photo. Tap one, type your new words or choose a
+new picture, and **Save**. Tap **Done** when you're finished. Visitors see the change straight away.
+Nearly all the wording and every main photo on those pages can be changed this way — no code, no
+waiting on anyone.
+
+### 🖼️ Change a service's photo
+**Menu → Services.** Each service now has a **Service photo** with a small preview. Tap **Add photo**
+(or **Change photo**) and pick a picture — it shows on your public Services page and on the home page
+service cards. Tap **Remove photo** to go back to the built-in default picture. The name, price, and
+timing for that service are all on the same screen.
+
 ## Your business details
 
-### ⚙️ Change your address, phone, qualifications, social links
+### ⚙️ Change your address, phone, qualifications, deposit
 **Menu → Settings.** Everything there — address, pickup note, your grooming qualification,
-Instagram/Facebook links, deposit percentage — you can edit yourself and save.
+deposit percentage — you can edit yourself and save.
+
+### 📱 Your social media links
+**Menu → Social media.** Paste the full link to any page you want shown — Instagram, Facebook,
+TikTok, or YouTube (for example `https://instagram.com/yourpage`). Each one turns into a little
+icon in your website footer. Leave a box blank to hide that icon. Tap **Save social links**.
+
+### 💤 Turning deposits off
+On **Menu → Settings**, set **Deposit required (%)** to **0** and save. Now clients book without
+paying anything upfront — they'll just pay in person on the day. Put a number back in (say 20)
+whenever you want to start taking deposits again.
 
 ## Good to know
 - **Photos:** any photo you upload is automatically cleaned up (resized, and location data is

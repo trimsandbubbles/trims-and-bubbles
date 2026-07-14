@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { deleteService, updateServiceAndPrices } from "@/lib/actions/admin-services";
+import { deleteService, removeServicePhoto, setServicePhoto, updateServiceAndPrices } from "@/lib/actions/admin-services";
 import { SIZE_BAND_HINTS, SIZE_BAND_LABELS } from "@/lib/format";
 
 export type ServicePriceRow = { id: string; sizeBand: "SMALL" | "MEDIUM" | "LARGE" | null; priceCents: number; isOnInspection: boolean };
@@ -19,10 +22,12 @@ export type ServiceRow = {
   category: "CORE" | "ADD_ON";
   durationMinutes: number;
   active: boolean;
+  imageUrl: string | null;
   prices: ServicePriceRow[];
 };
 
 export function ServiceEditor({ service }: { service: ServiceRow }) {
+  const router = useRouter();
   const [name, setName] = useState(service.name);
   const [description, setDescription] = useState(service.description ?? "");
   const [durationMinutes, setDurationMinutes] = useState(String(service.durationMinutes));
@@ -30,6 +35,8 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
   const [prices, setPrices] = useState(service.prices);
   const [pending, startTransition] = useTransition();
   const [removing, startRemoving] = useTransition();
+  const [photoPending, startPhoto] = useTransition();
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const dirty =
     name !== service.name ||
@@ -51,6 +58,37 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
       const result = await deleteService(service.id);
       if (result.status === "success") {
         toast.success(result.message ?? `${service.name} removed`);
+      } else {
+        toast.error(result.message);
+      }
+    });
+  }
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset the input so picking the same file again still fires onChange.
+    e.target.value = "";
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("photo", file);
+    startPhoto(async () => {
+      const result = await setServicePhoto(service.id, formData);
+      if (result.status === "success") {
+        toast.success(result.message ?? "Photo updated");
+        router.refresh();
+      } else {
+        toast.error(result.message);
+      }
+    });
+  }
+
+  function handleRemovePhoto() {
+    if (!window.confirm("Remove this service's photo? The default photo will be used instead.")) return;
+    startPhoto(async () => {
+      const result = await removeServicePhoto(service.id);
+      if (result.status === "success") {
+        toast.success(result.message ?? "Photo removed");
+        router.refresh();
       } else {
         toast.error(result.message);
       }
@@ -123,6 +161,55 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
       <div className="mt-3 space-y-1.5">
         <Label htmlFor={`desc-${service.id}`}>Description</Label>
         <Textarea id={`desc-${service.id}`} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <p className="text-sm font-medium">Service photo</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+            {service.imageUrl ? (
+              <Image src={service.imageUrl} alt={`${service.name} photo`} fill className="object-cover" sizes="112px" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                <ImagePlus className="h-6 w-6" aria-hidden />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoChange}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="h-11"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={photoPending}
+            >
+              {photoPending ? "Uploading..." : service.imageUrl ? "Change photo" : "Add photo"}
+            </Button>
+            {service.imageUrl && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                className="h-11"
+                onClick={handleRemovePhoto}
+                disabled={photoPending}
+              >
+                <Trash2 className="h-4 w-4" /> Remove photo
+              </Button>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Shown on your public Services page and home page. If you don&apos;t add one, a default photo is used.
+        </p>
       </div>
 
       <div className="mt-4 space-y-2">

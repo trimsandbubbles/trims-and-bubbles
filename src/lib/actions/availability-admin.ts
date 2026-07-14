@@ -5,14 +5,23 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireStaffOrOwner } from "@/lib/session";
 
-const dayScheduleSchema = z.object({
-  dayOfWeek: z.number().min(0).max(6),
-  isActive: z.boolean(),
+const windowSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/, "Use HH:mm"),
   endTime: z.string().regex(/^\d{2}:\d{2}$/, "Use HH:mm"),
 });
 
+const dayScheduleSchema = z.object({
+  dayOfWeek: z.number().min(0).max(6),
+  isActive: z.boolean(),
+  // A day can have several open windows — e.g. 09:00-12:00 and 15:00-20:00
+  // with a break in between. At least one window is kept even for a closed
+  // day so the times are remembered when it's switched back on.
+  windows: z.array(windowSchema).min(1, "Each day needs at least one time range").max(4),
+});
+
 export type ActionResult = { status: "success" } | { status: "error"; message: string };
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export async function updateWeeklyHours(days: z.infer<typeof dayScheduleSchema>[]): Promise<ActionResult> {
   await requireStaffOrOwner();
@@ -21,23 +30,39 @@ export async function updateWeeklyHours(days: z.infer<typeof dayScheduleSchema>[
     return { status: "error", message: parsed.error.issues[0]?.message ?? "Please check the hours entered." };
   }
   for (const d of parsed.data) {
-    if (d.isActive && d.endTime <= d.startTime) {
-      return { status: "error", message: "Closing time must be after opening time." };
+    if (!d.isActive) continue;
+    const sorted = [...d.windows].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    for (const w of sorted) {
+      if (w.endTime <= w.startTime) {
+        return { status: "error", message: `${DAY_NAMES[d.dayOfWeek]}: each finish time must be after its start time.` };
+      }
+    }
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].startTime < sorted[i - 1].endTime) {
+        return { status: "error", message: `${DAY_NAMES[d.dayOfWeek]}: the time ranges overlap — adjust them so they don't.` };
+      }
     }
   }
 
-  await prisma.$transaction(
-    parsed.data.map((d) =>
-      prisma.availabilityRule.upsert({
-        where: { dayOfWeek: d.dayOfWeek },
-        update: { isActive: d.isActive, startTime: d.startTime, endTime: d.endTime },
-        create: { dayOfWeek: d.dayOfWeek, isActive: d.isActive, startTime: d.startTime, endTime: d.endTime },
-      }),
-    ),
-  );
+  // Replace each day's rows wholesale — simplest correct behaviour now that a
+  // day can hold any number of window rows.
+  await prisma.$transaction([
+    prisma.availabilityRule.deleteMany({}),
+    prisma.availabilityRule.createMany({
+      data: parsed.data.flatMap((d) =>
+        d.windows.map((w) => ({
+          dayOfWeek: d.dayOfWeek,
+          isActive: d.isActive,
+          startTime: w.startTime,
+          endTime: w.endTime,
+        })),
+      ),
+    }),
+  ]);
 
   revalidatePath("/admin/availability");
   revalidatePath("/contact");
+  revalidatePath("/book");
   return { status: "success" };
 }
 

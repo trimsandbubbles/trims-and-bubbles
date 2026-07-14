@@ -1,4 +1,5 @@
 import { CalendarClock } from "lucide-react";
+import { groupWeeklyRules } from "@/lib/weekly-hours";
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 // Monday-first display order.
@@ -22,7 +23,8 @@ export function AvailabilityGlance({
 }: {
   rules: { dayOfWeek: number; isActive: boolean; startTime: string; endTime: string }[];
 }) {
-  const days = ORDER.map((d) => rules.find((r) => r.dayOfWeek === d)).filter((r): r is NonNullable<typeof r> => !!r);
+  const grouped = groupWeeklyRules(rules);
+  const days = ORDER.map((d) => grouped.find((r) => r.dayOfWeek === d)).filter((r): r is NonNullable<typeof r> => !!r);
   if (days.length === 0) return null;
 
   return (
@@ -36,7 +38,9 @@ export function AvailabilityGlance({
             <div key={d.dayOfWeek} className="flex items-center justify-between gap-3 border-b border-border/60 py-0.5 last:border-0">
               <span className="font-semibold">{DAY_LABELS[d.dayOfWeek]}</span>
               <span className={d.isActive ? "text-muted-foreground" : "text-muted-foreground/70"}>
-                {d.isActive ? `${fmtTime(d.startTime)} – ${fmtTime(d.endTime)}` : "Closed"}
+                {d.isActive
+                  ? d.windows.map((w) => `${fmtTime(w.startTime)} – ${fmtTime(w.endTime)}`).join(" & ")
+                  : "Closed"}
               </span>
             </div>
           ))}

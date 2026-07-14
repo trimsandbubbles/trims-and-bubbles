@@ -6,12 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/session";
 import type { ActionResult } from "@/lib/actions/pets";
 
-const urlOrBlank = z
-  .string()
-  .max(200, "Keep the link under 200 characters")
-  .optional()
-  .or(z.literal(""));
-
 const settingsSchema = z.object({
   businessName: z.string().min(1, "Business name is required"),
   contactPhone: z.string().optional(),
@@ -26,8 +20,6 @@ const settingsSchema = z.object({
     .max(160, "Keep the institution name under 160 characters")
     .optional()
     .or(z.literal("")),
-  instagramUrl: urlOrBlank,
-  facebookUrl: urlOrBlank,
 });
 
 /** Owner-only: the day-to-day operational settings (kept separate from the
@@ -51,8 +43,6 @@ export async function updateBusinessSettings(input: z.infer<typeof settingsSchem
     serviceAreaNote: d.serviceAreaNote?.trim() || null,
     credentialTitle: d.credentialTitle?.trim() || null,
     credentialInstitution: d.credentialInstitution?.trim() || null,
-    instagramUrl: d.instagramUrl?.trim() || null,
-    facebookUrl: d.facebookUrl?.trim() || null,
   };
 
   await prisma.businessSettings.upsert({

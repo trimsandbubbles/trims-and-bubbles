@@ -47,6 +47,7 @@ export function BookingWizard({
   initialPets,
   closedWeekdays,
   stripeEnabled,
+  depositPercentage,
   checkoutCancelled,
 }: {
   services: ServiceDTO[];
@@ -55,6 +56,7 @@ export function BookingWizard({
   initialPets: PetDTO[];
   closedWeekdays: number[];
   stripeEnabled: boolean;
+  depositPercentage: number;
   checkoutCancelled?: boolean;
 }) {
   const [step, setStep] = useState<Step>("service");
@@ -500,7 +502,7 @@ export function BookingWizard({
           <Button type="button" disabled={submitting || !phone.trim()} onClick={handleSubmit}>
             {submitting
               ? "Booking..."
-              : !isOnInspection && stripeEnabled
+              : !isOnInspection && stripeEnabled && depositPercentage > 0
                 ? "Confirm & pay deposit"
                 : "Confirm booking"}
           </Button>

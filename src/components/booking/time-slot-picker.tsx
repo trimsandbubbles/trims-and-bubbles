@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 export type ChosenSlot = { dateStr: string; startAt: string; endAt: string };
 
 type SlotDTO = { startAt: string; endAt: string };
-type FetchResult = { paramsKey: string; slots: SlotDTO[] } | { paramsKey: string; failed: true };
+type FetchResult =
+  | { paramsKey: string; slots: SlotDTO[]; booked: SlotDTO[] }
+  | { paramsKey: string; failed: true };
 
 const TIME_FMT = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", hour: "numeric", minute: "2-digit" });
 
@@ -59,8 +61,8 @@ export function TimeSlotPicker({
         if (!res.ok) throw new Error("Request failed");
         return res.json();
       })
-      .then((data: { slots: SlotDTO[] }) => {
-        if (!cancelled) setResult({ paramsKey: currentParamsKey, slots: data.slots });
+      .then((data: { slots: SlotDTO[]; booked?: SlotDTO[] }) => {
+        if (!cancelled) setResult({ paramsKey: currentParamsKey, slots: data.slots, booked: data.booked ?? [] });
       })
       .catch(() => {
         if (!cancelled) setResult({ paramsKey: currentParamsKey, failed: true });
@@ -75,6 +77,13 @@ export function TimeSlotPicker({
   const loading = !!paramsKey && !currentResult;
   const errored = !!currentResult && "failed" in currentResult && currentResult.failed;
   const slots = currentResult && "slots" in currentResult ? currentResult.slots : [];
+  const bookedSlots = currentResult && "booked" in currentResult ? currentResult.booked : [];
+  // One merged, time-ordered grid: open times are clickable, taken times show
+  // as greyed-out "Booked" so it's obvious why a time isn't offered.
+  const gridSlots = [
+    ...slots.map((s) => ({ ...s, booked: false })),
+    ...bookedSlots.map((s) => ({ ...s, booked: true })),
+  ].sort((a, b) => a.startAt.localeCompare(b.startAt));
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -103,13 +112,29 @@ export function TimeSlotPicker({
           <p className="text-sm text-destructive">Couldn&apos;t load times — please try another date.</p>
         )}
 
-        {selectedDate && !loading && !errored && slots.length === 0 && (
+        {selectedDate && !loading && !errored && gridSlots.length === 0 && (
           <p className="text-sm text-muted-foreground">No openings that day — try another date.</p>
         )}
 
-        {selectedDate && !loading && !errored && slots.length > 0 && (
+        {selectedDate && !loading && !errored && gridSlots.length > 0 && slots.length === 0 && (
+          <p className="mb-3 text-sm text-muted-foreground">That day is fully booked — try another date.</p>
+        )}
+
+        {selectedDate && !loading && !errored && gridSlots.length > 0 && (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {slots.map((slot) => {
+            {gridSlots.map((slot) => {
+              if (slot.booked) {
+                return (
+                  <div
+                    key={slot.startAt}
+                    aria-disabled="true"
+                    className="flex flex-col items-center rounded-lg border border-dashed border-border bg-muted/50 px-2 py-1 text-sm tabular-nums text-muted-foreground/70"
+                  >
+                    <span className="line-through">{TIME_FMT.format(new Date(slot.startAt))}</span>
+                    <span className="text-[10px] uppercase tracking-wide">Booked</span>
+                  </div>
+                );
+              }
               const isSelected = value?.startAt === slot.startAt;
               return (
                 <button

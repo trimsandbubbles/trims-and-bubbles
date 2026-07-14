@@ -29,8 +29,6 @@ export default async function AdminSettingsPage() {
             serviceAreaNote: settings.serviceAreaNote,
             credentialTitle: settings.credentialTitle,
             credentialInstitution: settings.credentialInstitution,
-            instagramUrl: settings.instagramUrl,
-            facebookUrl: settings.facebookUrl,
           }}
         />
       </div>

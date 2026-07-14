@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clock, Dog, Mail, Phone } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, Clock, Dog, Mail, MessageSquare, Phone } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AppointmentStatusBadge } from "@/components/status-badge";
 import { ClientNotesForm } from "@/components/admin/client-notes-form";
+import { SendMessageForm } from "@/components/admin/send-message-form";
 import { prisma } from "@/lib/prisma";
 import { formatCents, SIZE_BAND_LABELS } from "@/lib/format";
 
@@ -24,6 +25,7 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
         orderBy: { startAt: "desc" },
         include: { pet: true, primaryService: true },
       },
+      messages: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!client) notFound();
@@ -54,9 +56,44 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
       </div>
 
       <div className="mt-6">
-        <h2 className="mb-2 text-sm font-semibold">Staff notes</h2>
+        <h2 className="mb-2 text-sm font-semibold">Private notes (only you and staff can see these)</h2>
         <ClientNotesForm clientId={client.id} initialNotes={client.internalNotes} />
       </div>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MessageSquare className="h-4.5 w-4.5 text-primary" /> Messages
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <SendMessageForm clientId={client.id} />
+
+          {client.messages.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No messages sent to this client yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {client.messages.map((msg) => (
+                <div key={msg.id} className="rounded-lg border border-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">{dateTimeFmt.format(msg.createdAt)}</p>
+                    <div className="flex items-center gap-2">
+                      {msg.emailedAt && (
+                        <Badge variant="outline" className="text-xs font-normal">
+                          Emailed
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">{msg.readAt ? "Seen" : "Unread"}</span>
+                    </div>
+                  </div>
+                  {msg.subject && <p className="mt-1 text-sm font-medium">{msg.subject}</p>}
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{msg.body}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <h2 className="mt-8 mb-3 flex items-center gap-2 text-lg font-semibold">
         <Dog className="h-4.5 w-4.5 text-primary" /> Dogs
