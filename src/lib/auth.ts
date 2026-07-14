@@ -17,14 +17,19 @@ export const auth = betterAuth({
   // link at their own tunnel. In production we trust ONLY our real deployed
   // origin (BETTER_AUTH_URL, which Vercel-style hosts set for us); in dev we keep
   // localhost + the review tunnel so the owner-preview link still works.
-  // In production we additionally trust the deployment's own *.vercel.app URLs
-  // (VERCEL_URL / VERCEL_PROJECT_PRODUCTION_URL are set by Vercel and are
-  // specific to THIS project — not a wildcard) so login works on the direct
-  // Vercel URL before/while DNS points the real domain at it.
+  // In production we additionally trust the deployment's own Vercel URLs so
+  // login works on the direct vercel.app address before/while DNS points the
+  // real domain at it. These are all specific to THIS project — no wildcards:
+  //  - VERCEL_URL: this deployment's unique URL
+  //  - VERCEL_PROJECT_PRODUCTION_URL: the project's production domain (NOTE:
+  //    once a custom domain is attached, Vercel sets this to the custom domain,
+  //    NOT the vercel.app alias — which is why the stable project alias is
+  //    also listed explicitly below)
   trustedOrigins: async () =>
     process.env.NODE_ENV === "production"
       ? [
           process.env.BETTER_AUTH_URL ?? "",
+          "https://trims-and-bubbles.vercel.app",
           process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
           process.env.VERCEL_PROJECT_PRODUCTION_URL
             ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
