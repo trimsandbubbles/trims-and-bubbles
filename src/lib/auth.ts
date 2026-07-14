@@ -17,9 +17,19 @@ export const auth = betterAuth({
   // link at their own tunnel. In production we trust ONLY our real deployed
   // origin (BETTER_AUTH_URL, which Vercel-style hosts set for us); in dev we keep
   // localhost + the review tunnel so the owner-preview link still works.
+  // In production we additionally trust the deployment's own *.vercel.app URLs
+  // (VERCEL_URL / VERCEL_PROJECT_PRODUCTION_URL are set by Vercel and are
+  // specific to THIS project — not a wildcard) so login works on the direct
+  // Vercel URL before/while DNS points the real domain at it.
   trustedOrigins: async () =>
     process.env.NODE_ENV === "production"
-      ? [process.env.BETTER_AUTH_URL ?? ""].filter(Boolean)
+      ? [
+          process.env.BETTER_AUTH_URL ?? "",
+          process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
+          process.env.VERCEL_PROJECT_PRODUCTION_URL
+            ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+            : "",
+        ].filter(Boolean)
       : ["http://localhost:3000", "https://*.trycloudflare.com"],
   // Brute-force / credential-stuffing protection on /sign-in, /sign-up, etc.
   // Better Auth enables rate limiting by default in production, but its default

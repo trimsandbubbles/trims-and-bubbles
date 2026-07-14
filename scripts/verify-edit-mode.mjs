@@ -1,7 +1,10 @@
 import { chromium, request } from "playwright";
 
-const BASE = "http://localhost:3000";
-const OWNER = { email: "owner@trimsandbubbles.example", password: "OwnerPass123!" };
+const BASE = process.env.VERIFY_BASE_URL || "http://localhost:3000";
+const OWNER = {
+  email: process.env.OWNER_EMAIL || "owner@trimsandbubbles.example",
+  password: process.env.OWNER_PASSWORD || "OwnerPass123!",
+};
 const shot = (name) => `C:/Users/AYATAW~1/AppData/Local/Temp/claude/C--Users-ayatawara-Documents-Anjana-Trims-and-bubbless/f05c6593-2b96-40ed-a335-1bd7e34b3be6/scratchpad/${name}`;
 
 const results = [];

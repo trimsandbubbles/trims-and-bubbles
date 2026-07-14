@@ -49,7 +49,8 @@ The code is **already a git repository** (initialised and committed in `extracte
   - `BLOB_READ_WRITE_TOKEN` = from a Vercel Blob store (see Step 4)
   - Leave all `STRIPE_*` **blank** (we're cash-only for now — see Payments below)
   - (Your generated `BETTER_AUTH_SECRET` is in `DEPLOY-SECRETS.txt` in the parent folder — keep it private.)
-- Deploy. **Database migrations run automatically on every deploy** — the project's `vercel-build` script runs `prisma migrate deploy` before building, so the Neon database sets itself up. After the first successful deploy, seed the starter content once by running the seed scripts against the Neon database (`db:seed`, then `npx tsx scripts/seed-products.ts` and `scripts/seed-gallery.ts`) — I can do this step for you.
+- Deploy. **Database migrations run automatically on every deploy** — the project's `vercel-build` script runs `prisma migrate deploy` before building, so the Neon database sets itself up. After the first successful deploy, seed the starter content once by running **`npx tsx scripts/seed-production.ts`** (with `OWNER_EMAIL`/`OWNER_PASSWORD` set — creates business hours, services, and the single owner login; **no demo data**), then `npx tsx scripts/seed-products.ts` and `scripts/seed-gallery.ts` — I can do this step for you.
+- ⚠️ Never run `npm run db:seed` against the production database — that's the dev/demo seed (it wipes data and creates demo logins). It now refuses to run against a non-localhost database as a safety net. To change the owner's email/password later, run `scripts/set-owner-credentials.ts`.
 
 ### 4. Cloud photo storage — DONE (just add the token)
 Uploaded photos (gallery, products, edit-mode images) now **automatically use Vercel Blob** in production — the code change is already made (`src/lib/uploads.ts` detects `BLOB_READ_WRITE_TOKEN` and switches from local disk to Blob storage; `next.config.ts` and the security policy already allow Blob-hosted images). All you do:

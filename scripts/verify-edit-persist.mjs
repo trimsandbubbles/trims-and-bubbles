@@ -1,6 +1,9 @@
 import { chromium, request } from "playwright";
-const BASE = "http://localhost:3000";
-const OWNER = { email: "owner@trimsandbubbles.example", password: "OwnerPass123!" };
+const BASE = process.env.VERIFY_BASE_URL || "http://localhost:3000";
+const OWNER = {
+  email: process.env.OWNER_EMAIL || "owner@trimsandbubbles.example",
+  password: process.env.OWNER_PASSWORD || "OwnerPass123!",
+};
 const browser = await chromium.launch();
 const api = await request.newContext();
 await api.post(`${BASE}/api/auth/sign-in/email`, { data: OWNER, headers: { origin: BASE, "content-type": "application/json" } });

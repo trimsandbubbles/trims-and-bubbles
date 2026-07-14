@@ -59,7 +59,7 @@ export function AdminLoginForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@trimsandbubbles.example"
+          placeholder="you@example.com"
         />
       </div>
       <div className="space-y-1.5">

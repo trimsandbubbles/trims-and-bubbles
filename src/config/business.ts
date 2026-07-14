@@ -32,7 +32,7 @@ export const businessConfig = {
 
   contact: {
     phone: "0423 464 314",
-    email: "hello@trimsandbubbles.example", // TODO_CLIENT: confirm a contact email (flyer lists phone only)
+    email: "trimsandbubbles@gmail.com",
     instagram: "",
     facebook: "",
   },
