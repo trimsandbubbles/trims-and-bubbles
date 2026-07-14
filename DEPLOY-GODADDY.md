@@ -24,7 +24,15 @@ GoDaddy just stays the "address registrar" — the site itself lives on Vercel. 
 ## Step-by-step
 
 ### 1. Put the code on GitHub
-Create a new **private** GitHub repo and push the contents of the `extracted/` folder to it. (I can do this part for you — just say the word and give me a repo to push to, or I'll walk you through it.)
+The code is **already a git repository** (initialised and committed in `extracted/`). To publish it:
+- Create a new **private** repo on github.com (e.g. `trims-and-bubbles`).
+- Then, from the `extracted/` folder, connect and push:
+  ```
+  git remote add origin https://github.com/<your-username>/trims-and-bubbles.git
+  git branch -M main
+  git push -u origin main
+  ```
+  (I can run these for you once you've created the empty repo and I have push access — just say the word.)
 
 ### 2. Create the database (Neon)
 - Sign up at neon.tech → create a project → copy the **connection string** (starts with `postgresql://…`). That's your `DATABASE_URL`.
@@ -38,11 +46,16 @@ Create a new **private** GitHub repo and push the contents of the `extracted/` f
   - `NEXT_PUBLIC_APP_URL` = `https://trimsandbubbles.com.au`
   - `RESEND_API_KEY` + `EMAIL_FROM` = only if you set up Resend (otherwise leave blank; emails just log)
   - `OWNER_NOTIFICATION_EMAIL` = your sister's email (where "new booking" alerts go)
+  - `BLOB_READ_WRITE_TOKEN` = from a Vercel Blob store (see Step 4)
   - Leave all `STRIPE_*` **blank** (we're cash-only for now — see Payments below)
-- Deploy. The first build also needs the database set up: run **`npx prisma migrate deploy`** against the Neon database, then the seed scripts once (`db:seed`, `seed-products.ts`, `seed-gallery.ts`). I can prepare this so it runs automatically on deploy.
+  - (Your generated `BETTER_AUTH_SECRET` is in `DEPLOY-SECRETS.txt` in the parent folder — keep it private.)
+- Deploy. **Database migrations run automatically on every deploy** — the project's `vercel-build` script runs `prisma migrate deploy` before building, so the Neon database sets itself up. After the first successful deploy, seed the starter content once by running the seed scripts against the Neon database (`db:seed`, then `npx tsx scripts/seed-products.ts` and `scripts/seed-gallery.ts`) — I can do this step for you.
 
-### 4. One required code change before real photos: cloud photo storage
-Right now uploaded photos (gallery, product, edit-mode images) save to the server's local disk. On Vercel that disk is temporary and wipes between deploys, so uploads wouldn't stick. Before launch we swap this to **Vercel Blob** (free tier) — it's a small, contained change in **one file** (`src/lib/uploads.ts`, the `saveImage`/`deleteImage` functions, which were deliberately written as the single swap point). **I can make this change for you when you're ready to deploy** — it's about 20 minutes of my work, not yours.
+### 4. Cloud photo storage — DONE (just add the token)
+Uploaded photos (gallery, products, edit-mode images) now **automatically use Vercel Blob** in production — the code change is already made (`src/lib/uploads.ts` detects `BLOB_READ_WRITE_TOKEN` and switches from local disk to Blob storage; `next.config.ts` and the security policy already allow Blob-hosted images). All you do:
+- In Vercel: **Storage → Create → Blob** → it gives you a `BLOB_READ_WRITE_TOKEN`.
+- Add that token to the project's Environment Variables (Step 3).
+That's it — photos will then persist properly in production. In local/preview (no token) it keeps using local disk, unchanged.
 
 ### 5. Point the GoDaddy domain at Vercel
 - In Vercel: **Project → Settings → Domains → Add** `trimsandbubbles.com.au`. Vercel shows you the exact DNS records to set (typically an **A record** for `@` and a **CNAME** for `www`).
