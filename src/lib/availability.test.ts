@@ -1,0 +1,213 @@
+import { describe, expect, it } from "vitest";
+import { getOpenSlotsForDate, isSlotStillOpen, type DayHours } from "./availability";
+
+// Tue-Sat 9-5, Sun/Mon closed — mirrors the app's seeded default hours.
+const WEEKLY_HOURS: Record<number, DayHours> = {
+  0: null, // Sunday
+  1: null, // Monday
+  2: { startTime: "09:00", endTime: "17:00" }, // Tuesday
+  3: { startTime: "09:00", endTime: "17:00" },
+  4: { startTime: "09:00", endTime: "17:00" },
+  5: { startTime: "09:00", endTime: "17:00" },
+  6: { startTime: "09:00", endTime: "17:00" },
+};
+
+// Fixed "now" far enough before every test date that minLeadMinutes never
+// interferes unless a test is specifically exercising lead-time behavior.
+const FAR_PAST_NOW = new Date("2026-01-01T00:00:00Z");
+
+const TUESDAY = "2026-07-14"; // confirmed Tuesday, AEST (winter, UTC+10)
+const SUNDAY = "2026-07-12"; // confirmed Sunday, closed by default
+
+describe("getOpenSlotsForDate", () => {
+  it("generates evenly-spaced slots across a full open day", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 90,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+
+    // 9:00-17:00 = 480 min; last valid start = 480 - 90 = 390 min after open;
+    // 30-min steps from 0..390 inclusive = 14 slots.
+    expect(slots).toHaveLength(14);
+    expect(slots[0].startAt.toISOString()).toBe("2026-07-13T23:00:00.000Z"); // 09:00 AEST
+    expect(slots.at(-1)!.startAt.toISOString()).toBe("2026-07-14T05:30:00.000Z"); // 15:30 AEST
+    expect(slots.at(-1)!.endAt.toISOString()).toBe("2026-07-14T07:00:00.000Z"); // 17:00 AEST exactly
+  });
+
+  it("converts Sydney wall-clock hours to the correct UTC instant (AEST, winter)", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 30,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    // 09:00 Sydney (UTC+10, no DST in July) == 23:00 UTC the day before.
+    expect(slots[0].startAt.toISOString()).toBe("2026-07-13T23:00:00.000Z");
+  });
+
+  it("converts Sydney wall-clock hours to the correct UTC instant (AEDT, summer)", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: "2026-01-13", // a Tuesday, AEDT (UTC+11)
+      durationMinutes: 30,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    // 09:00 Sydney (UTC+11 during daylight saving) == 22:00 UTC the day before.
+    expect(slots[0].startAt.toISOString()).toBe("2026-01-12T22:00:00.000Z");
+  });
+
+  it("returns no slots on a day with no weekly hours entry (closed)", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots).toEqual([]);
+  });
+
+  it("returns no slots when a CLOSED exception overrides a normally-open day", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      exception: { type: "CLOSED" },
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots).toEqual([]);
+  });
+
+  it("honors a CUSTOM_HOURS exception that opens an otherwise-closed day", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      exception: { type: "CUSTOM_HOURS", customStartTime: "10:00", customEndTime: "12:00" },
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    // 10:00-12:00 = 120 min; last valid start for a 60-min service = 60 min in;
+    // 30-min steps: 0, 30, 60 => 3 slots.
+    expect(slots).toHaveLength(3);
+  });
+
+  it("excludes slots that overlap an existing appointment", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [
+        {
+          startAt: new Date("2026-07-14T00:00:00.000Z"), // 10:00 AEST
+          endAt: new Date("2026-07-14T01:00:00.000Z"), // 11:00 AEST
+        },
+      ],
+      bufferMinutes: 15,
+      now: FAR_PAST_NOW,
+    });
+
+    const clashesWithBooking = slots.some(
+      (s) => s.startAt < new Date("2026-07-14T01:15:00.000Z") && s.endAt > new Date("2026-07-14T00:00:00.000Z"),
+    );
+    expect(clashesWithBooking).toBe(false);
+
+    // Buffered range is [10:00, 11:15) AEST; the 30-min grid's next point at
+    // or after 11:15 is 11:30 AEST, which should be offered.
+    const boundarySlot = slots.find((s) => s.startAt.toISOString() === "2026-07-14T01:30:00.000Z");
+    expect(boundarySlot).toBeDefined();
+  });
+
+  it("applies bufferMinutes as a gap after existing bookings, not before", () => {
+    const withBuffer = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 30,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [{ startAt: new Date("2026-07-14T01:00:00.000Z"), endAt: new Date("2026-07-14T02:00:00.000Z") }],
+      bufferMinutes: 30,
+      now: FAR_PAST_NOW,
+    });
+    // A slot ending exactly when the busy interval starts (no buffer needed
+    // *before* it) should still be offered.
+    const rightBeforeBooking = withBuffer.find((s) => s.endAt.toISOString() === "2026-07-14T01:00:00.000Z");
+    expect(rightBeforeBooking).toBeDefined();
+
+    // But a slot starting right when the booking ends should NOT be offered —
+    // it needs the 30-min buffer after.
+    const rightAfterBooking = withBuffer.find((s) => s.startAt.toISOString() === "2026-07-14T02:00:00.000Z");
+    expect(rightAfterBooking).toBeUndefined();
+  });
+
+  it("does not offer a slot that doesn't fully fit before closing time", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 481, // one minute longer than the entire 8-hour day
+      weeklyHours: WEEKLY_HOURS,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots).toEqual([]);
+  });
+
+  it("respects minLeadMinutes to exclude slots too close to now", () => {
+    // "Now" is 14:45 AEST on the test Tuesday; with a 60-min lead time,
+    // nothing before 15:45 AEST should be offered. The 30-min grid's next
+    // point at or after 15:45 AEST is 16:00 AEST.
+    const now = new Date("2026-07-14T04:45:00.000Z"); // 14:45 AEST
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 30,
+      weeklyHours: WEEKLY_HOURS,
+      busy: [],
+      minLeadMinutes: 60,
+      now,
+    });
+    expect(slots.every((s) => s.startAt.getTime() >= now.getTime() + 60 * 60_000)).toBe(true);
+    expect(slots.some((s) => s.startAt.toISOString() === "2026-07-14T06:00:00.000Z")).toBe(true); // 16:00 AEST
+    expect(slots.some((s) => s.startAt.toISOString() === "2026-07-14T05:30:00.000Z")).toBe(false); // 15:30 AEST — too soon
+  });
+
+  it("respects a custom slotIntervalMinutes granularity", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      exception: { type: "CUSTOM_HOURS", customStartTime: "09:00", customEndTime: "10:00" },
+      busy: [],
+      slotIntervalMinutes: 60,
+      now: FAR_PAST_NOW,
+    });
+    // Exactly one hour available for a 60-min service at 60-min granularity => exactly 1 slot.
+    expect(slots).toHaveLength(1);
+  });
+});
+
+describe("isSlotStillOpen", () => {
+  const busy = [{ startAt: new Date("2026-07-14T00:00:00.000Z"), endAt: new Date("2026-07-14T01:00:00.000Z") }];
+
+  it("returns true for a candidate that doesn't overlap and clears the buffer", () => {
+    const candidate = { startAt: new Date("2026-07-14T01:15:00.000Z"), endAt: new Date("2026-07-14T02:00:00.000Z") };
+    expect(isSlotStillOpen(candidate, busy, 15)).toBe(true);
+  });
+
+  it("returns false for a candidate that overlaps an existing busy interval", () => {
+    const candidate = { startAt: new Date("2026-07-14T00:30:00.000Z"), endAt: new Date("2026-07-14T01:30:00.000Z") };
+    expect(isSlotStillOpen(candidate, busy, 15)).toBe(false);
+  });
+
+  it("returns false for a candidate inside the buffer window after a busy interval", () => {
+    const candidate = { startAt: new Date("2026-07-14T01:05:00.000Z"), endAt: new Date("2026-07-14T01:35:00.000Z") };
+    expect(isSlotStillOpen(candidate, busy, 15)).toBe(false);
+  });
+
+  it("returns true when there is no busy interval at all", () => {
+    const candidate = { startAt: new Date("2026-07-14T01:05:00.000Z"), endAt: new Date("2026-07-14T01:35:00.000Z") };
+    expect(isSlotStillOpen(candidate, [], 15)).toBe(true);
+  });
+});

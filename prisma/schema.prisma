@@ -1,0 +1,476 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  role          String?
+  banned        Boolean?  @default(false)
+  banReason     String?
+  banExpires    DateTime?
+  sessions      Session[]
+  accounts      Account[]
+  client        Client?
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+/// Better Auth's persistent rate-limit store. Used because the default in-memory
+/// store does not survive stateless serverless (Vercel) invocations — see the
+/// `rateLimit: { storage: "database" }` option in src/lib/auth.ts. Field names
+/// (key/count/lastRequest) are dictated by Better Auth and must not be renamed.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rate_limit")
+}
+
+// =====================================================================
+// Domain models — Trims and Bubbles grooming business
+// =====================================================================
+
+enum SizeBand {
+  SMALL
+  MEDIUM
+  LARGE
+  XL
+}
+
+enum ServiceCategory {
+  CORE
+  ADD_ON
+}
+
+enum AppointmentStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentType {
+  DEPOSIT
+  BALANCE
+  FULL
+  REFUND
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  STRIPE
+  CASH
+  OTHER
+}
+
+enum ExceptionType {
+  CLOSED
+  CUSTOM_HOURS
+}
+
+enum OrderFulfillment {
+  PICKUP
+  SHIPPING
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  FULFILLED
+  CANCELLED
+}
+
+/// A grooming client's account-linked profile. One-to-one with the auth User
+/// (kept separate from User so domain fields don't crowd the auth table).
+model Client {
+  id             String        @id @default(cuid())
+  userId         String        @unique
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone          String?
+  marketingOptIn Boolean       @default(false)
+  internalNotes  String?
+  pets           Pet[]
+  appointments   Appointment[]
+  orders         Order[]
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@map("client")
+}
+
+model Pet {
+  id               String        @id @default(cuid())
+  clientId         String
+  client           Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name             String
+  breed            String?
+  sizeBand         SizeBand
+  weightKg         Float?
+  coatType         String?
+  temperamentNotes String?
+  photoUrl         String?
+  archivedAt       DateTime?     @db.Timestamptz(3)
+  appointments     Appointment[]
+  createdAt        DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@index([clientId])
+  @@map("pet")
+}
+
+/// A bookable service (Full Groom, Wash and Dry, Nail Clipping, Pickup/Drop-off, etc).
+model Service {
+  id              String             @id @default(cuid())
+  name            String
+  slug            String             @unique
+  description     String?
+  category        ServiceCategory    @default(CORE)
+  durationMinutes Int
+  displayOrder    Int                @default(0)
+  active          Boolean            @default(true)
+  prices          ServicePrice[]
+  appointments    Appointment[]      @relation("PrimaryService")
+  addOnFor        AppointmentAddOn[]
+  createdAt       DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@map("service")
+}
+
+/// The services × dog-size pricing matrix (mirrors the dogbarber/shampooch
+/// reference pricing tables). sizeBand is null for flat-fee add-ons.
+model ServicePrice {
+  id                      String    @id @default(cuid())
+  serviceId               String
+  service                 Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  sizeBand                SizeBand?
+  priceCents              Int
+  isOnInspection          Boolean   @default(false)
+  durationMinutesOverride Int?
+  createdAt               DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([serviceId, sizeBand])
+  @@map("service_price")
+}
+
+model Appointment {
+  id                String             @id @default(cuid())
+  clientId          String
+  client            Client             @relation(fields: [clientId], references: [id])
+  petId             String
+  pet               Pet                @relation(fields: [petId], references: [id])
+  primaryServiceId  String
+  primaryService    Service            @relation("PrimaryService", fields: [primaryServiceId], references: [id])
+  startAt           DateTime           @db.Timestamptz(3)
+  endAt             DateTime           @db.Timestamptz(3)
+  status            AppointmentStatus  @default(PENDING_PAYMENT)
+  sizeBandAtBooking SizeBand
+  totalPriceCents   Int
+  depositPriceCents Int?
+  notesFromClient   String?
+  groomerNote       String?
+  pickupRequested   Boolean            @default(false)
+  pickupAddress     String?
+  cancelledAt       DateTime?          @db.Timestamptz(3)
+  cancelReason      String?
+  addOns            AppointmentAddOn[]
+  photos            AppointmentPhoto[]
+  payments          Payment[]
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@index([startAt])
+  @@index([clientId])
+  @@index([petId])
+  @@map("appointment")
+}
+
+model AppointmentAddOn {
+  id                  String      @id @default(cuid())
+  appointmentId       String
+  appointment         Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  serviceId           String
+  service             Service     @relation(fields: [serviceId], references: [id])
+  priceCentsAtBooking Int
+  createdAt           DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@map("appointment_add_on")
+}
+
+model AppointmentPhoto {
+  id                        String      @id @default(cuid())
+  appointmentId             String
+  appointment               Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  url                       String
+  caption                   String?
+  isFeaturedOnPublicGallery Boolean     @default(false)
+  createdAt                 DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@index([appointmentId])
+  @@map("appointment_photo")
+}
+
+/// Recurring weekly hours (e.g. Tue-Sat 9-5). One row per day of week.
+model AvailabilityRule {
+  id        String  @id @default(cuid())
+  dayOfWeek Int // 0 = Sunday .. 6 = Saturday
+  startTime String // "09:00"
+  endTime   String // "17:00"
+  isActive  Boolean @default(true)
+
+  @@unique([dayOfWeek])
+  @@map("availability_rule")
+}
+
+/// One-off overrides to the recurring hours (public holidays, custom hours).
+model AvailabilityException {
+  id              String        @id @default(cuid())
+  date            DateTime      @db.Date
+  type            ExceptionType
+  customStartTime String?
+  customEndTime   String?
+  reason          String?
+
+  @@unique([date])
+  @@map("availability_exception")
+}
+
+/// Owner's ad hoc time blocks (lunch, vet run, day off) that aren't full closures.
+model BlockedTimeSlot {
+  id              String   @id @default(cuid())
+  startAt         DateTime @db.Timestamptz(3)
+  endAt           DateTime @db.Timestamptz(3)
+  reason          String?
+  createdByUserId String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([startAt])
+  @@map("blocked_time_slot")
+}
+
+model Payment {
+  id                      String        @id @default(cuid())
+  appointmentId           String
+  appointment             Appointment   @relation(fields: [appointmentId], references: [id])
+  type                    PaymentType
+  amountCents             Int
+  currency                String        @default("aud")
+  status                  PaymentStatus @default(PENDING)
+  method                  PaymentMethod @default(STRIPE)
+  stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
+  stripeRefundId          String?
+  paidAt                  DateTime?     @db.Timestamptz(3)
+  createdAt               DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@index([appointmentId])
+  @@map("payment")
+}
+
+/// Singleton row (id = 1) of day-to-day operational settings the owner can
+/// change themselves via /admin/settings — deliberately separate from the
+/// one-time launch placeholders in src/config/business.ts.
+model BusinessSettings {
+  id                Int      @id @default(1)
+  depositPercentage Int      @default(20)
+  businessName      String   @default("Trims and Bubbles")
+  contactPhone      String?
+  contactEmail      String?
+  socials           Json?
+  bufferMinutes     Int      @default(15)
+  // Editable-by-owner launch details that used to live in src/config/business.ts
+  // (which required a developer + redeploy to change). Nullable so an empty value
+  // falls back to the config default in code.
+  fullAddress          String?
+  serviceAreaNote      String?
+  credentialTitle      String?
+  credentialInstitution String?
+  instagramUrl         String?
+  facebookUrl          String?
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("business_settings")
+}
+
+/// Owner-managed retail catalogue. Replaces the old hardcoded array in
+/// src/config/store.ts so the owner can add/edit/reprice/sell-out products from
+/// the admin panel with no code change. Ordered lines are still snapshotted into
+/// OrderItem at checkout, so past receipts stay accurate if the catalogue changes.
+model Product {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  tagline        String?
+  description    String?
+  priceCents     Int
+  compareAtCents Int?
+  imageUrl       String?
+  category       String?
+  badge          String?
+  active         Boolean  @default(true)
+  soldOut        Boolean  @default(false)
+  displayOrder   Int      @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("product")
+}
+
+/// Owner-editable website copy and images. Keyed by a stable string (e.g.
+/// "home.hero.title"). Lets the owner change text and pictures inline on the
+/// live site (edit mode) without a developer. `kind` is "text" or "image"
+/// (for images, `value` is the uploaded image URL). Falls back to the
+/// hard-coded default in the page when no row exists for a key.
+model SiteContent {
+  key       String   @id
+  kind      String   @default("text")
+  value     String
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("site_content")
+}
+
+/// Standalone photos the owner uploads for the public gallery, independent of
+/// any appointment. (Appointment photos can still be featured via
+/// AppointmentPhoto.isFeaturedOnPublicGallery.) Replaces the old hardcoded
+/// extraShowcase array in the gallery page.
+model GalleryImage {
+  id           String   @id @default(cuid())
+  url          String
+  caption      String?
+  groupLabel   String?
+  displayOrder Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([active, displayOrder])
+  @@map("gallery_image")
+}
+
+// =====================================================================
+// Online store — a small retail shop (supplements, food, grooming
+// products) with pickup or shipping fulfilment.
+// =====================================================================
+
+/// A retail order placed through the online store. Products themselves are a
+/// static catalogue (src/config/store.ts); each ordered line is snapshotted
+/// into OrderItem so prices/names are preserved even if the catalogue changes.
+model Order {
+  id              String           @id @default(cuid())
+  clientId        String?
+  client          Client?          @relation(fields: [clientId], references: [id])
+  /// Unguessable token issued at checkout so a guest (no account) can view their
+  /// own order confirmation without the page being world-readable by id alone.
+  accessToken     String?          @unique
+  contactName     String
+  contactEmail    String
+  contactPhone    String
+  fulfillment     OrderFulfillment
+  shippingAddress String?
+  status          OrderStatus      @default(PENDING_PAYMENT)
+  subtotalCents   Int
+  shippingCents   Int              @default(0)
+  totalCents      Int
+  notes           String?
+  items           OrderItem[]
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@index([clientId])
+  @@index([createdAt])
+  @@map("store_order")
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productSlug String
+  name        String
+  priceCents  Int
+  quantity    Int
+  imageUrl    String?
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([orderId])
+  @@map("store_order_item")
+}

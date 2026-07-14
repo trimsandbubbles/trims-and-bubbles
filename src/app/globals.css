@@ -1,0 +1,371 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =====================================================================
+   THEME TOKENS — Trims & Bubbles
+   =====================================================================
+   Two layers, on purpose:
+
+   1. RAW PALETTE — literal coral + warm-neutral ramps. Regenerate these
+      wholesale without touching anything else in this file.
+   2. SEMANTIC TOKENS — what components actually consume (bg-primary,
+      text-accent-foreground, etc). Components should NEVER hardcode a
+      colour — only these semantic classes — so restyling the whole
+      site/portal/admin is a matter of editing the values below.
+
+   Brand (from the Trims & Bubbles flyer): a WARM, soft, boutique feel.
+   Cream canvas, warm charcoal ink, and one friendly CORAL signature — the
+   same coral as the hand-lettered wordmark. Neutrals carry a gentle warm
+   tint so nothing reads cold against the cream.
+   ===================================================================== */
+
+:root {
+  /* ---------- RAW PALETTE (edit these to re-theme) ---------- */
+
+  /* Coral / salmon — the signature brand colour (matches the wordmark) */
+  --coral-50: oklch(0.971 0.014 36);
+  --coral-100: oklch(0.939 0.03 35);
+  --coral-200: oklch(0.892 0.055 34);
+  --coral-300: oklch(0.83 0.088 33);
+  --coral-400: oklch(0.758 0.122 32);
+  --coral-500: oklch(0.695 0.15 31);
+  --coral-600: oklch(0.63 0.163 30);
+  --coral-700: oklch(0.552 0.152 29);
+  --coral-800: oklch(0.462 0.126 28);
+  --coral-900: oklch(0.39 0.1 28);
+
+  /* Warm neutrals — soft, slightly toasted greys so nothing reads cold */
+  --neutral-50: oklch(0.986 0.006 80);
+  --neutral-100: oklch(0.964 0.009 78);
+  --neutral-200: oklch(0.918 0.011 76);
+  --neutral-300: oklch(0.852 0.013 72);
+  --neutral-400: oklch(0.705 0.015 66);
+  --neutral-500: oklch(0.556 0.015 58);
+  --neutral-600: oklch(0.446 0.014 52);
+  --neutral-700: oklch(0.356 0.013 48);
+  --neutral-800: oklch(0.272 0.012 46);
+  --neutral-900: oklch(0.216 0.011 45);
+
+  /* Warm cream — the page canvas */
+  --cream: oklch(0.975 0.014 84);
+
+  --radius: 0.85rem;
+
+  /* ---------- SEMANTIC TOKENS (light mode) ---------- */
+  --background: var(--cream);
+  --foreground: var(--neutral-900);
+  --card: oklch(0.995 0.004 84);
+  --card-foreground: var(--neutral-900);
+  --popover: oklch(0.995 0.004 84);
+  --popover-foreground: var(--neutral-900);
+
+  /* primary = warm charcoal ink (main buttons, dark bands) */
+  --primary: var(--neutral-900);
+  --primary-foreground: var(--neutral-50);
+
+  /* soft warm surface */
+  --secondary: var(--neutral-100);
+  --secondary-foreground: var(--neutral-900);
+
+  /* accent = soft coral SURFACE (safe as a hover/selected bg). The vivid
+     coral lives in --accent-solid. */
+  --accent: var(--coral-100);
+  --accent-foreground: var(--coral-800);
+
+  /* the one signature coral — wordmark, kickers, one highlighted word, and
+     accent CTAs on dark bands. Exposed as bg-accent-solid / text-accent-solid. */
+  --accent-solid: var(--coral-600);
+  --accent-solid-foreground: oklch(0.99 0.008 40);
+
+  --muted: var(--neutral-100);
+  --muted-foreground: var(--neutral-500);
+
+  --destructive: var(--coral-700);
+  --destructive-foreground: oklch(0.99 0.008 40);
+
+  --border: var(--neutral-200);
+  --input: var(--neutral-400);
+  --ring: var(--coral-600);
+
+  --chart-1: var(--coral-600);
+  --chart-2: var(--neutral-800);
+  --chart-3: var(--coral-300);
+  --chart-4: var(--neutral-400);
+  --chart-5: var(--coral-800);
+
+  --sidebar: var(--neutral-50);
+  --sidebar-foreground: var(--neutral-900);
+  --sidebar-primary: var(--neutral-900);
+  --sidebar-primary-foreground: var(--neutral-50);
+  --sidebar-accent: var(--coral-100);
+  --sidebar-accent-foreground: var(--coral-800);
+  --sidebar-border: var(--neutral-200);
+  --sidebar-ring: var(--coral-600);
+}
+
+.dark {
+  --background: var(--neutral-900);
+  --foreground: var(--neutral-50);
+  --card: var(--neutral-800);
+  --card-foreground: var(--neutral-50);
+  --popover: var(--neutral-800);
+  --popover-foreground: var(--neutral-50);
+
+  --primary: var(--neutral-50);
+  --primary-foreground: var(--neutral-900);
+
+  --secondary: var(--neutral-800);
+  --secondary-foreground: var(--neutral-50);
+
+  --accent: var(--coral-900);
+  --accent-foreground: var(--coral-100);
+
+  --accent-solid: var(--coral-500);
+  --accent-solid-foreground: oklch(0.99 0.008 40);
+
+  --muted: var(--neutral-800);
+  --muted-foreground: var(--neutral-400);
+
+  --destructive: var(--coral-500);
+  --destructive-foreground: var(--neutral-50);
+
+  --border: color-mix(in oklch, var(--neutral-50) 12%, transparent);
+  --input: color-mix(in oklch, var(--neutral-50) 22%, transparent);
+  --ring: var(--coral-500);
+
+  --chart-1: var(--coral-500);
+  --chart-2: var(--neutral-200);
+  --chart-3: var(--coral-300);
+  --chart-4: var(--neutral-400);
+  --chart-5: var(--coral-700);
+
+  --sidebar: var(--neutral-800);
+  --sidebar-foreground: var(--neutral-50);
+  --sidebar-primary: var(--neutral-50);
+  --sidebar-primary-foreground: var(--neutral-900);
+  --sidebar-accent: var(--coral-900);
+  --sidebar-accent-foreground: var(--coral-100);
+  --sidebar-border: color-mix(in oklch, var(--neutral-50) 12%, transparent);
+  --sidebar-ring: var(--coral-500);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-heading: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+  --font-script: var(--font-corben), Georgia, serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive: var(--destructive);
+  --color-accent-solid-foreground: var(--accent-solid-foreground);
+  --color-accent-solid: var(--accent-solid);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 2.6);
+  --radius-4xl: calc(var(--radius) * 3.2);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Nunito runs a hair light for body copy — nudge to a slightly thicker
+       default weight, matching the warm/friendly brand voice. */
+    font-weight: 500;
+  }
+  html {
+    @apply font-sans;
+  }
+  h1, h2, h3, h4 {
+    @apply font-heading tracking-tight;
+    font-weight: 800;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Warm editorial helpers — a tiny, token-driven vocabulary the marketing
+   pages use. Soft, restrained: one coral accent, generous whitespace.
+   --------------------------------------------------------------------- */
+@layer components {
+  /* coral eyebrow / kicker: a short coral rule + tracked label */
+  .kicker {
+    @apply inline-flex items-center gap-3 text-xs font-extrabold uppercase tracking-[0.2em] text-accent-solid;
+  }
+  .kicker::before {
+    content: "";
+    @apply inline-block h-px w-7 bg-accent-solid;
+  }
+  /* the brand wordmark — a chunky warm rounded serif matching the logo.
+     Reference the next/font variable directly (@theme inline does not emit
+     --font-corben onto :root). */
+  .wordmark {
+    font-family: var(--font-corben), Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  /* Realistic soap bubble — a see-through glass sphere, NOT a filled disc
+     (which reads as a stain). Built from stacked radial-gradients:
+       1. a sharp white specular highlight (the "shine" dot, upper-left)
+       2. a broad soft sheen behind it
+       3. a bright thin rim hugging the edge (Fresnel edge light)
+       4. a faint shaded crescent on the lower-right for spherical form
+     The middle stays transparent so the background shows through.
+     Pure CSS — no image, no blur, no JS, no animation — free to render. */
+  /* Cute cartoon bubble — soft and airy: a whisper of a body tint, a THIN
+     soft rim (no heavy outline), a round shine, and a tiny sparkle dot. The
+     centre stays see-through. Each bubble's colour comes from --bub (a soft
+     pastel set per-bubble); falls back to the brand coral. */
+  .bubble {
+    background:
+      /* soft round shine, upper-left */
+      radial-gradient(circle at 33% 29%, rgba(255, 255, 255, 0.92) 0%, transparent 20%),
+      /* tiny sparkle dot */
+      radial-gradient(circle at 44% 21%, rgba(255, 255, 255, 0.85) 0%, transparent 5%),
+      /* thin, soft coloured rim */
+      radial-gradient(closest-side, transparent 83%, color-mix(in oklch, var(--bub, var(--accent-solid)) 62%, transparent) 92%, transparent 100%),
+      /* gentle body tint so it has a hint of colour + form */
+      radial-gradient(circle at 62% 66%, color-mix(in oklch, var(--bub, var(--accent-solid)) 15%, transparent) 0%, transparent 60%);
+  }
+  .bubble-light {
+    background:
+      radial-gradient(circle at 33% 29%, rgba(255, 255, 255, 0.96) 0%, transparent 20%),
+      radial-gradient(circle at 44% 21%, rgba(255, 255, 255, 0.92) 0%, transparent 5%),
+      radial-gradient(closest-side, transparent 83%, color-mix(in oklch, var(--bub, white) 55%, white) 92%, transparent 100%),
+      radial-gradient(circle at 62% 66%, color-mix(in oklch, var(--bub, white) 24%, transparent) 0%, transparent 60%);
+  }
+
+  /* Pop! Triggered when a poppable bubble is touched — a quick grow-and-fade
+     with an expanding ring. */
+  .bubble-pop {
+    animation: bubble-pop 0.42s ease-out forwards !important;
+    pointer-events: none;
+  }
+  .bubble-pop::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 9999px;
+    border: 2px solid color-mix(in oklch, var(--bub, var(--accent-solid)) 70%, white);
+    animation: bubble-pop-ring 0.42s ease-out forwards;
+  }
+
+  /* Poppable ONLY on hover-capable, fine-pointer devices (desktops). On
+     touch/mobile the bubbles are purely decorative and never intercept a
+     tap — so they can't get in the way of buttons or the booking form. */
+  .bubble-pop-target {
+    pointer-events: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .bubble-pop-target {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+  }
+
+  /* Gentle floating motion so they read as real, drifting bubbles — not
+     static circles that only "move" because the page scrolls under them.
+     Only `transform` + `opacity` animate, so it's GPU-composited (no layout
+     or paint) and cheap. Per-bubble --dur/--delay/--drift vary the motion.
+     Fades to 0 at both ends so the loop reset is invisible. */
+  .bubble-float {
+    animation: bubble-rise var(--dur, 10s) ease-in-out var(--delay, 0s) infinite;
+  }
+}
+
+@keyframes bubble-rise {
+  0% {
+    transform: translate3d(0, 18px, 0) scale(0.9);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 8px), -108px, 0) scale(1.04);
+    opacity: 0;
+  }
+}
+
+@keyframes bubble-pop {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  35% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+@keyframes bubble-pop-ring {
+  from {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+/* Accessibility + battery: hold still for anyone who prefers reduced motion.
+   Popping still works — it just vanishes instantly instead of animating. */
+@media (prefers-reduced-motion: reduce) {
+  .bubble-float {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .bubble-pop {
+    animation: none !important;
+    opacity: 0;
+  }
+  .bubble-pop::before {
+    display: none;
+  }
+}
