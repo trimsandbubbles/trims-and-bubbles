@@ -10,6 +10,10 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migrations need a DIRECT Postgres connection. On Neon the runtime
+    // DATABASE_URL is the pooled (pgbouncer) endpoint, which `prisma migrate`
+    // can't use — so when DIRECT_DATABASE_URL is set (production), migrations
+    // use it instead. Locally only DATABASE_URL exists and is already direct.
+    url: process.env["DIRECT_DATABASE_URL"] || process.env["DATABASE_URL"],
   },
 });
