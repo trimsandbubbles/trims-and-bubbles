@@ -29,6 +29,7 @@ export async function SiteFooter() {
               <li><Link href="/services" className="hover:text-foreground">Services &amp; Pricing</Link></li>
               <li><Link href="/about" className="hover:text-foreground">About</Link></li>
               <li><Link href="/gallery" className="hover:text-foreground">Gallery</Link></li>
+              <li><Link href="/reviews" className="hover:text-foreground">Reviews</Link></li>
               <li><Link href="/book" className="hover:text-foreground">Book Now</Link></li>
             </ul>
           </div>

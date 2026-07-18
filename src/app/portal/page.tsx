@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { CalendarDays, Dog, ImageIcon, MessageSquare, PawPrint } from "lucide-react";
+import { CalendarDays, Dog, ImageIcon, MessageSquare, PawPrint, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentSession } from "@/lib/session";
@@ -143,6 +143,9 @@ export default async function PortalDashboardPage() {
         <Button render={<Link href="/book" />}>Book another appointment</Button>
         <Button variant="outline" render={<Link href="/portal/appointments" />}>
           View appointment history
+        </Button>
+        <Button variant="outline" render={<Link href="/portal/reviews" />}>
+          <Star className="h-4 w-4" /> Leave a review
         </Button>
       </div>
     </div>

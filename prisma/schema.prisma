@@ -169,6 +169,7 @@ model Client {
   appointments   Appointment[]
   orders         Order[]
   messages       ClientMessage[]
+  review         Review?
   createdAt      DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
 
@@ -190,6 +191,27 @@ model ClientMessage {
 
   @@index([clientId, createdAt])
   @@map("client_message")
+}
+
+/// A star rating + comment left by a logged-in client. Hidden from the public
+/// site until the owner approves it (moderation), and the owner can attach a
+/// public reply. One review per client (they can edit it; an edit re-enters the
+/// approval queue).
+model Review {
+  id           String    @id @default(cuid())
+  clientId     String    @unique
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  rating       Int
+  body         String
+  approved     Boolean   @default(false)
+  hidden       Boolean   @default(false)
+  ownerReply   String?
+  ownerReplyAt DateTime? @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([approved, hidden, createdAt])
+  @@map("review")
 }
 
 model Pet {
