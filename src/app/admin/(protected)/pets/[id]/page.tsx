@@ -6,8 +6,11 @@ import { ArrowLeft, CalendarDays, Dog, ImageIcon, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AppointmentStatusBadge } from "@/components/status-badge";
+import { EditPetDialog } from "@/components/pets/edit-pet-dialog";
+import { RemovePetButton } from "@/components/pets/remove-pet-button";
 import { prisma } from "@/lib/prisma";
 import { SIZE_BAND_LABELS } from "@/lib/format";
+import type { SizeBand } from "@/components/booking/types";
 
 export const metadata: Metadata = { title: "Dog Profile | Admin" };
 
@@ -36,9 +39,25 @@ export default async function AdminPetDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link href={`/admin/clients/${pet.client.id}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> {pet.client.user.name}
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href={`/admin/clients/${pet.client.id}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> {pet.client.user.name}
+        </Link>
+        <div className="flex flex-wrap gap-2">
+          <EditPetDialog
+            pet={{
+              id: pet.id,
+              name: pet.name,
+              breed: pet.breed,
+              sizeBand: pet.sizeBand as SizeBand,
+              weightKg: pet.weightKg,
+              coatType: pet.coatType,
+              temperamentNotes: pet.temperamentNotes,
+            }}
+          />
+          <RemovePetButton petId={pet.id} petName={pet.name} redirectTo={`/admin/clients/${pet.client.id}`} />
+        </div>
+      </div>
 
       <Card className="mt-4">
         <CardContent className="flex flex-wrap items-center gap-5 py-5">
