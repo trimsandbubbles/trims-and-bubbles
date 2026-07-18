@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, LayoutDashboard, LogOut, Menu, Settings, Users, Clock, Receipt, Tag, ShoppingBag, Package, Image as ImageIcon, Share2, Star } from "lucide-react";
+import { CalendarDays, LayoutDashboard, LogOut, Menu, Settings, Users, Clock, Receipt, Tag, ShoppingBag, Package, Image as ImageIcon, Share2, Star, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { signOut } from "@/lib/auth-client";
@@ -90,7 +90,15 @@ export function AdminShell({
         </div>
         <AdminNavList links={links} pathname={pathname} />
         <div className="mt-4 border-t border-border pt-4">
-          <p className="truncate px-1 text-xs text-muted-foreground">Signed in as {userName}</p>
+          <Link
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ExternalLink className="h-4.5 w-4.5" /> View website
+          </Link>
+          <p className="mt-3 truncate px-1 text-xs text-muted-foreground">Signed in as {userName}</p>
           <Button variant="ghost" onClick={handleSignOut} className="mt-2 w-full justify-start px-1">
             <LogOut className="h-4 w-4" /> Sign out
           </Button>
@@ -117,7 +125,16 @@ export function AdminShell({
               <div className="flex h-full flex-col px-4">
                 <AdminNavList links={links} pathname={pathname} onNavigate={() => setOpen(false)} />
                 <div className="mt-4 border-t border-border pt-4">
-                  <p className="truncate text-xs text-muted-foreground">Signed in as {userName}</p>
+                  <Link
+                    href="/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-base text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <ExternalLink className="h-4.5 w-4.5" /> View website
+                  </Link>
+                  <p className="mt-3 truncate text-xs text-muted-foreground">Signed in as {userName}</p>
                   <Button variant="ghost" onClick={handleSignOut} className="mt-2 w-full justify-start px-0">
                     <LogOut className="h-4 w-4" /> Sign out
                   </Button>
