@@ -31,6 +31,8 @@ export default async function AdminReviewsPage() {
     hidden: r.hidden,
     ownerReply: r.ownerReply,
     clientName: r.client.user.name,
+    displayName: r.displayName,
+    photoUrls: r.photoUrls,
     dateLabel: dateFmt.format(r.createdAt),
   });
 

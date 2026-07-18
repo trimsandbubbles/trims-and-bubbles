@@ -203,6 +203,8 @@ model Review {
   client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   rating       Int
   body         String
+  displayName  String?
+  photoUrls    String[]
   approved     Boolean   @default(false)
   hidden       Boolean   @default(false)
   ownerReply   String?

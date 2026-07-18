@@ -17,6 +17,8 @@ export type AdminReview = {
   hidden: boolean;
   ownerReply: string | null;
   clientName: string;
+  displayName: string | null;
+  photoUrls: string[];
   dateLabel: string;
 };
 
@@ -43,7 +45,30 @@ export function ReviewModerationCard({ review }: { review: AdminReview }) {
           <span className="text-xs text-muted-foreground">{review.dateLabel}</span>
         </div>
 
+        {review.displayName && review.displayName !== review.clientName && (
+          <p className="text-xs text-muted-foreground">
+            Shown on the website as “<span className="font-medium text-foreground">{review.displayName}</span>”
+          </p>
+        )}
+
         <p className="whitespace-pre-wrap text-sm text-pretty">{review.body}</p>
+
+        {review.photoUrls.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {review.photoUrls.map((url) => (
+              <a
+                key={url}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block h-20 w-20 overflow-hidden rounded-lg border border-border"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="Review photo" className="h-full w-full object-cover" />
+              </a>
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           {!review.approved && (

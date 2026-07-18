@@ -14,6 +14,7 @@ import { useCart } from "@/components/store/cart-context";
 import { SHIPPING_CENTS, FREE_SHIPPING_THRESHOLD_CENTS } from "@/config/store";
 import { formatCents } from "@/lib/format";
 import { placeOrder } from "@/lib/actions/store";
+import { businessConfig } from "@/config/business";
 import { cn } from "@/lib/utils";
 
 type Fulfillment = "PICKUP" | "SHIPPING";
@@ -199,6 +200,17 @@ export default function CheckoutPage() {
             </Button>
             <p className="mt-3 text-center text-xs text-muted-foreground">
               No online payment needed for now — we&apos;ll confirm your order and payment on pickup/delivery.
+            </p>
+            <p className="mt-3 border-t border-border pt-3 text-center text-xs text-muted-foreground">
+              Any trouble? Call{" "}
+              <a href={`tel:${businessConfig.contact.phone.replace(/[^\d+]/g, "")}`} className="font-medium text-foreground hover:text-primary">
+                {businessConfig.contact.phone}
+              </a>{" "}
+              or email{" "}
+              <a href={`mailto:${businessConfig.contact.email}`} className="font-medium text-foreground hover:text-primary">
+                {businessConfig.contact.email}
+              </a>
+              .
             </p>
           </div>
         </div>

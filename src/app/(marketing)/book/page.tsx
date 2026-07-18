@@ -7,6 +7,7 @@ import { isStripeConfigured } from "@/lib/stripe";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import type { ServiceDTO } from "@/components/booking/types";
 import { AvailabilityGlance } from "@/components/booking/availability-glance";
+import { NeedHelp } from "@/components/need-help";
 
 export const metadata: Metadata = { title: "Book an Appointment" };
 
@@ -57,6 +58,9 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
         depositPercentage={settings.depositPercentage}
         checkoutCancelled={cancelled === "1"}
       />
+      <div className="mx-auto max-w-2xl px-4 pb-14 sm:px-6">
+        <NeedHelp />
+      </div>
     </div>
   );
 }

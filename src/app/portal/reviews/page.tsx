@@ -59,7 +59,18 @@ export default async function PortalReviewPage() {
 
       <Card className="mt-6">
         <CardContent className="py-6">
-          <ReviewForm initial={review ? { rating: review.rating, body: review.body } : null} />
+          <ReviewForm
+            initial={
+              review
+                ? {
+                    rating: review.rating,
+                    body: review.body,
+                    displayName: review.displayName ?? "",
+                    photoUrls: review.photoUrls,
+                  }
+                : null
+            }
+          />
         </CardContent>
       </Card>
     </div>

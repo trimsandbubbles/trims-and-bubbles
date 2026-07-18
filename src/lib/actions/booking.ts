@@ -160,14 +160,10 @@ export async function createBooking(rawInput: BookingInput): Promise<BookingResu
   const depositPriceCents = rawDepositCents > 0 ? rawDepositCents : null;
   const requiresDeposit = !priceRow.isOnInspection && depositPriceCents !== null;
 
-  // Fail closed in production: if a deposit is owed but online payment isn't
-  // configured (e.g. a missing/typo'd STRIPE_SECRET_KEY), do NOT silently
-  // auto-confirm an unpaid booking. Outside production we keep the convenient
-  // auto-confirm so the prototype works end-to-end without a Stripe account.
-  if (process.env.NODE_ENV === "production" && requiresDeposit && !isStripeConfigured()) {
-    return { status: "error", message: "Online payment isn't available right now — please get in touch to book." };
-  }
-
+  // Cash-only mode: the business takes payment in person for now (no online
+  // card payments). When Stripe isn't configured we simply confirm the booking
+  // and collect on the day — we do NOT block the customer. If/when Stripe is
+  // switched on AND a deposit is set, we collect the deposit online instead.
   const collectDepositViaStripe = requiresDeposit && isStripeConfigured();
 
   let appointment;

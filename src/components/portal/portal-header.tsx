@@ -14,7 +14,7 @@ const NAV_LINKS = [
   { href: "/portal/pets", label: "My Dogs" },
   { href: "/portal/appointments", label: "Appointments" },
   { href: "/portal/messages", label: "Messages" },
-  { href: "/portal/reviews", label: "Leave a Review" },
+  { href: "/portal/reviews", label: "My Review" },
   { href: "/portal/payments", label: "Payments" },
   { href: "/portal/profile", label: "Profile" },
   { href: "/store", label: "Shop" },
@@ -32,19 +32,19 @@ export function PortalHeader({ userName }: { userName: string }) {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/portal" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-horizontal.svg" alt="Trims & Bubbles" className="h-10 w-auto" />
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-1">
+        <nav className="hidden xl:flex items-center gap-1">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "px-3 py-2 text-sm rounded-md transition-colors hover:bg-muted hover:text-foreground",
+                "whitespace-nowrap px-2.5 py-2 text-sm rounded-md transition-colors hover:bg-muted hover:text-foreground",
                 pathname === link.href ? "text-foreground font-medium" : "text-muted-foreground",
               )}
             >
@@ -53,7 +53,7 @@ export function PortalHeader({ userName }: { userName: string }) {
           ))}
         </nav>
 
-        <div className="hidden lg:flex items-center gap-2">
+        <div className="hidden xl:flex items-center gap-2">
           <span className="pr-1 text-sm text-muted-foreground">Hi, {userName.split(" ")[0]}</span>
           <Button render={<Link href="/book" />}>Book Now</Button>
           <Button variant="outline" onClick={handleSignOut}>
@@ -62,7 +62,7 @@ export function PortalHeader({ userName }: { userName: string }) {
         </div>
 
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger render={<Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu" />}>
+          <SheetTrigger render={<Button variant="ghost" size="icon" className="xl:hidden" aria-label="Open menu" />}>
             <Menu className="h-6 w-6" />
           </SheetTrigger>
           <SheetContent side="right" className="w-72">

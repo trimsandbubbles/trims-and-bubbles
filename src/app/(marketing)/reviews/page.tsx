@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { MessageSquareHeart } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
@@ -101,7 +102,26 @@ export default async function ReviewsPage() {
                   <span className="text-xs text-muted-foreground">{dateFmt.format(review.createdAt)}</span>
                 </div>
                 <p className="mt-3 whitespace-pre-wrap text-pretty">{review.body}</p>
-                <p className="mt-3 text-sm font-medium text-muted-foreground">— {displayName(review.client.user.name)}</p>
+
+                {review.photoUrls.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {review.photoUrls.map((url) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="relative block h-24 w-24 overflow-hidden rounded-lg border border-border"
+                      >
+                        <Image src={url} alt="Customer photo" fill className="object-cover" sizes="96px" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                <p className="mt-3 text-sm font-medium text-muted-foreground">
+                  — {review.displayName?.trim() || displayName(review.client.user.name)}
+                </p>
 
                 {review.ownerReply && (
                   <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3">
