@@ -13,6 +13,7 @@ import { formatCents } from "@/lib/format";
 import { computeBalanceOwingCents } from "@/lib/payments-data";
 import { isStripeConfigured } from "@/lib/stripe";
 import { PayBalanceButton } from "@/components/portal/pay-balance-button";
+import { CancelBookingButton } from "@/components/portal/cancel-booking-button";
 import { BookingGroupPanel } from "@/components/appointments/booking-group-panel";
 
 export const metadata: Metadata = { title: "Appointment Details" };
@@ -67,6 +68,8 @@ export default async function PortalAppointmentDetailPage({
   const paidCents = apt.payments.filter((p) => p.status === "PAID" && p.type !== "REFUND").reduce((sum, p) => sum + p.amountCents, 0);
   const balanceOwingCents = computeBalanceOwingCents(apt.totalPriceCents, apt.payments);
   const isCancelled = apt.status === "CANCELLED" || apt.status === "NO_SHOW";
+  const canCancel =
+    (apt.status === "CONFIRMED" || apt.status === "PENDING_PAYMENT") && apt.startAt.getTime() > Date.now();
 
   const dateTimeFmt = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Sydney",
@@ -116,6 +119,16 @@ export default async function PortalAppointmentDetailPage({
           basePath="/portal/appointments"
           dateTimeFmt={dateTimeFmt}
         />
+      )}
+
+      {canCancel && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-4">
+          <p className="text-sm text-muted-foreground">
+            Need to cancel? {otherBookingDogs.length > 0 ? "This cancels the whole booking. " : ""}
+            We&apos;ll let the salon know right away.
+          </p>
+          <CancelBookingButton appointmentId={apt.id} dogCount={otherBookingDogs.length + 1} />
+        </div>
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
