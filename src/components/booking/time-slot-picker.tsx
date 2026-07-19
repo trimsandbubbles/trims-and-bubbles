@@ -24,14 +24,12 @@ function toDateStr(date: Date): string {
 }
 
 export function TimeSlotPicker({
-  serviceId,
-  addOnIds,
+  durationMinutes,
   closedWeekdays,
   value,
   onChange,
 }: {
-  serviceId: string;
-  addOnIds: string[];
+  durationMinutes: number;
   closedWeekdays: number[];
   value: ChosenSlot | null;
   onChange: (slot: ChosenSlot) => void;
@@ -45,16 +43,14 @@ export function TimeSlotPicker({
   const [result, setResult] = useState<FetchResult | null>(null);
 
   const dateStr = selectedDate ? toDateStr(selectedDate) : null;
-  const addOnKey = addOnIds.join(",");
-  const paramsKey = dateStr ? `${dateStr}|${serviceId}|${addOnKey}` : null;
+  const paramsKey = dateStr ? `${dateStr}|${durationMinutes}` : null;
 
   useEffect(() => {
     if (!dateStr) return;
-    const currentParamsKey = `${dateStr}|${serviceId}|${addOnKey}`;
+    const currentParamsKey = `${dateStr}|${durationMinutes}`;
     let cancelled = false;
 
-    const params = new URLSearchParams({ date: dateStr, serviceId });
-    if (addOnKey) params.set("addOnIds", addOnKey);
+    const params = new URLSearchParams({ date: dateStr, durationMinutes: String(durationMinutes) });
 
     fetch(`/api/availability?${params.toString()}`)
       .then((res) => {
@@ -71,7 +67,7 @@ export function TimeSlotPicker({
     return () => {
       cancelled = true;
     };
-  }, [dateStr, serviceId, addOnKey]);
+  }, [dateStr, durationMinutes]);
 
   const currentResult = result && result.paramsKey === paramsKey ? result : null;
   const loading = !!paramsKey && !currentResult;

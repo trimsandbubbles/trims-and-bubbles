@@ -11,6 +11,7 @@ import { AppointmentStatusActions } from "@/components/admin/appointment-status-
 import { RescheduleDialog } from "@/components/admin/reschedule-dialog";
 import { RecordPaymentForm } from "@/components/admin/record-payment-form";
 import { PaymentRowActions } from "@/components/admin/payment-actions";
+import { BookingGroupPanel } from "@/components/appointments/booking-group-panel";
 import { prisma } from "@/lib/prisma";
 import { requireStaffOrOwner } from "@/lib/session";
 import { formatCents } from "@/lib/format";
@@ -49,6 +50,16 @@ export default async function AdminAppointmentDetailPage({ params }: { params: P
     },
   });
   if (!apt) notFound();
+
+  const bookingGroupSiblings = apt.bookingGroupId
+    ? await prisma.appointment.findMany({
+        where: { bookingGroupId: apt.bookingGroupId, clientId: apt.clientId },
+        include: { pet: true, primaryService: true },
+        orderBy: { startAt: "asc" },
+      })
+    : [];
+  const bookingGroupSize = bookingGroupSiblings.length;
+  const otherBookingDogs = bookingGroupSiblings.filter((s) => s.id !== apt.id);
 
   const paidCents = apt.payments.filter((p) => p.status === "PAID" && p.type !== "REFUND").reduce((sum, p) => sum + p.amountCents, 0);
   const balanceOwingCents = computeBalanceOwingCents(apt.totalPriceCents, apt.payments);
@@ -90,6 +101,21 @@ export default async function AdminAppointmentDetailPage({ params }: { params: P
           </div>
         </div>
       </div>
+
+      {bookingGroupSize > 1 && (
+        <BookingGroupPanel
+          title={`Part of a ${bookingGroupSize}-dog booking`}
+          siblings={otherBookingDogs.map((s) => ({
+            id: s.id,
+            petName: s.pet.name,
+            serviceName: s.primaryService.name,
+            startAt: s.startAt,
+            status: s.status,
+          }))}
+          basePath="/admin/appointments"
+          dateTimeFmt={dateTimeFmt}
+        />
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
         <Card>

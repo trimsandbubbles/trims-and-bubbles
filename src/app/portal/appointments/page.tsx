@@ -41,6 +41,13 @@ export default async function PortalAppointmentsPage() {
     minute: "2-digit",
   });
 
+  // Count how many dogs share each bookingGroupId so grouped rows can show a hint.
+  const bookingGroupCounts = new Map<string, number>();
+  for (const apt of [...upcoming, ...past]) {
+    if (!apt.bookingGroupId) continue;
+    bookingGroupCounts.set(apt.bookingGroupId, (bookingGroupCounts.get(apt.bookingGroupId) ?? 0) + 1);
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -62,7 +69,12 @@ export default async function PortalAppointmentsPage() {
       ) : (
         <div className="space-y-3">
           {upcoming.map((apt) => (
-            <AppointmentRow key={apt.id} apt={apt} dateTimeFmt={dateTimeFmt} />
+            <AppointmentRow
+              key={apt.id}
+              apt={apt}
+              dateTimeFmt={dateTimeFmt}
+              bookingGroupSize={apt.bookingGroupId ? bookingGroupCounts.get(apt.bookingGroupId) ?? 1 : 1}
+            />
           ))}
         </div>
       )}
@@ -75,7 +87,12 @@ export default async function PortalAppointmentsPage() {
       ) : (
         <div className="space-y-3">
           {past.map((apt) => (
-            <AppointmentRow key={apt.id} apt={apt} dateTimeFmt={dateTimeFmt} />
+            <AppointmentRow
+              key={apt.id}
+              apt={apt}
+              dateTimeFmt={dateTimeFmt}
+              bookingGroupSize={apt.bookingGroupId ? bookingGroupCounts.get(apt.bookingGroupId) ?? 1 : 1}
+            />
           ))}
         </div>
       )}
@@ -86,6 +103,7 @@ export default async function PortalAppointmentsPage() {
 function AppointmentRow({
   apt,
   dateTimeFmt,
+  bookingGroupSize,
 }: {
   apt: {
     id: string;
@@ -96,7 +114,10 @@ function AppointmentRow({
     primaryService: { name: string };
   };
   dateTimeFmt: Intl.DateTimeFormat;
+  bookingGroupSize?: number;
 }) {
+  const otherDogsCount = (bookingGroupSize ?? 1) - 1;
+
   return (
     <Link href={`/portal/appointments/${apt.id}`} className="group block">
       <Card className="transition-colors group-hover:border-accent-solid/50">
@@ -108,6 +129,11 @@ function AppointmentRow({
             <p className="mt-1 flex items-center gap-1.5 text-muted-foreground">
               <Clock className="h-3.5 w-3.5" /> {dateTimeFmt.format(apt.startAt)}
             </p>
+            {otherDogsCount > 0 && (
+              <p className="mt-1 text-xs font-medium text-accent-solid">
+                +{otherDogsCount} more {otherDogsCount === 1 ? "dog" : "dogs"} in this booking
+              </p>
+            )}
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <span className="inline-flex items-center gap-1 text-sm font-bold text-accent-solid">

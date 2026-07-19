@@ -13,6 +13,7 @@ import { formatCents } from "@/lib/format";
 import { computeBalanceOwingCents } from "@/lib/payments-data";
 import { isStripeConfigured } from "@/lib/stripe";
 import { PayBalanceButton } from "@/components/portal/pay-balance-button";
+import { BookingGroupPanel } from "@/components/appointments/booking-group-panel";
 
 export const metadata: Metadata = { title: "Appointment Details" };
 
@@ -55,6 +56,14 @@ export default async function PortalAppointmentDetailPage({
   });
   if (!apt) notFound();
 
+  const otherBookingDogs = apt.bookingGroupId
+    ? await prisma.appointment.findMany({
+        where: { bookingGroupId: apt.bookingGroupId, clientId: client.id, id: { not: apt.id } },
+        include: { pet: true, primaryService: true },
+        orderBy: { startAt: "asc" },
+      })
+    : [];
+
   const paidCents = apt.payments.filter((p) => p.status === "PAID" && p.type !== "REFUND").reduce((sum, p) => sum + p.amountCents, 0);
   const balanceOwingCents = computeBalanceOwingCents(apt.totalPriceCents, apt.payments);
   const isCancelled = apt.status === "CANCELLED" || apt.status === "NO_SHOW";
@@ -93,6 +102,21 @@ export default async function PortalAppointmentDetailPage({
         </div>
         <AppointmentStatusBadge status={apt.status} />
       </div>
+
+      {otherBookingDogs.length > 0 && (
+        <BookingGroupPanel
+          title="This booking also includes:"
+          siblings={otherBookingDogs.map((s) => ({
+            id: s.id,
+            petName: s.pet.name,
+            serviceName: s.primaryService.name,
+            startAt: s.startAt,
+            status: s.status,
+          }))}
+          basePath="/portal/appointments"
+          dateTimeFmt={dateTimeFmt}
+        />
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
         <Card>

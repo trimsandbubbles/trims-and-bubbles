@@ -8,6 +8,10 @@ import { getCurrentSession } from "@/lib/session";
 import { isStripeConfigured } from "@/lib/stripe";
 import { SHIPPING_CENTS, FREE_SHIPPING_THRESHOLD_CENTS } from "@/config/store";
 import { getProductBySlug } from "@/lib/store-data";
+import { getBusinessSettings } from "@/lib/services-data";
+import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
+import { businessConfig } from "@/config/business";
+import { formatCents } from "@/lib/format";
 import type { Product } from "../../generated/prisma/client";
 
 const orderSchema = z.object({
@@ -124,5 +128,89 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<PlaceOrderR
   });
 
   revalidatePath("/admin/orders");
+
+  // Best-effort notifications (fail-soft — a slow/failed send never breaks the
+  // order). Nothing actually sends until RESEND_API_KEY is configured.
+  const settings = await getBusinessSettings();
+  await notifyNewOrder({
+    ownerEmail: settings.contactEmail,
+    order: {
+      contactName: input.contactName.trim(),
+      contactEmail: input.contactEmail.trim(),
+      contactPhone: input.contactPhone.trim(),
+      fulfillment: input.fulfillment,
+      shippingAddress: input.fulfillment === "SHIPPING" ? input.shippingAddress?.trim() || null : null,
+      notes: input.notes?.trim() || null,
+      totalCents,
+      lines: resolved.map((l) => ({ name: l.product.name, quantity: l.quantity, priceCents: l.product.priceCents })),
+    },
+  });
+
   return { status: "success", orderId: order.id, accessToken };
+}
+
+function resolveOwnerEmail(settingsContactEmail: string | null | undefined): string {
+  return settingsContactEmail || process.env.OWNER_NOTIFICATION_EMAIL || businessConfig.contact.email;
+}
+
+type OrderNotification = {
+  ownerEmail: string | null | undefined;
+  order: {
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    fulfillment: "PICKUP" | "SHIPPING";
+    shippingAddress: string | null;
+    notes: string | null;
+    totalCents: number;
+    lines: { name: string; quantity: number; priceCents: number }[];
+  };
+};
+
+/** Emails the OWNER a new-order alert and the CUSTOMER a confirmation. Both are
+ * fail-soft and stay dormant until RESEND_API_KEY is set. */
+async function notifyNewOrder({ ownerEmail, order }: OrderNotification): Promise<void> {
+  const itemsHtml = order.lines
+    .map(
+      (l) =>
+        `<li style="margin:0 0 4px;">${escapeHtml(l.name)} × ${l.quantity} — ${escapeHtml(formatCents(l.priceCents * l.quantity))}</li>`,
+    )
+    .join("");
+  const itemsText = order.lines.map((l) => `${l.name} x${l.quantity}`).join("; ");
+  const how =
+    order.fulfillment === "SHIPPING"
+      ? `Ship to: ${escapeHtml(order.shippingAddress ?? "")}`
+      : "Pickup in-store";
+  const notesHtml = order.notes ? `<p style="margin:0 0 12px;"><strong>Notes:</strong> ${escapeHtml(order.notes)}</p>` : "";
+
+  const ownerBody = `
+    <p style="margin:0 0 12px;">You've got a new store order. 🛍️</p>
+    <ul style="margin:0 0 12px;padding-left:18px;">${itemsHtml}</ul>
+    <p style="margin:0 0 6px;"><strong>Total: ${escapeHtml(formatCents(order.totalCents))}</strong> (payment on ${order.fulfillment === "SHIPPING" ? "delivery" : "pickup"})</p>
+    <p style="margin:0 0 6px;">${how}</p>
+    <p style="margin:0 0 6px;">Customer: ${escapeHtml(order.contactName)} · ${escapeHtml(order.contactPhone)} · ${escapeHtml(order.contactEmail)}</p>
+    ${notesHtml}
+  `;
+  await sendEmail({
+    to: resolveOwnerEmail(ownerEmail),
+    subject: `New store order — ${order.contactName} (${formatCents(order.totalCents)})`,
+    html: emailLayout(ownerBody),
+    text: `New store order from ${order.contactName} (${order.contactPhone}, ${order.contactEmail}). ${itemsText}. Total ${formatCents(order.totalCents)}. ${how.replace(/<[^>]+>/g, "")}.${order.notes ? ` Notes: ${order.notes}` : ""}`,
+    replyTo: order.contactEmail,
+  });
+
+  const customerBody = `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(order.contactName)},</p>
+    <p style="margin:0 0 12px;">Thanks for your order with Trims &amp; Bubbles! 🐾</p>
+    <ul style="margin:0 0 12px;padding-left:18px;">${itemsHtml}</ul>
+    <p style="margin:0 0 6px;"><strong>Total: ${escapeHtml(formatCents(order.totalCents))}</strong></p>
+    <p style="margin:0 0 12px;">Payment is taken in person on ${order.fulfillment === "SHIPPING" ? "delivery" : "pickup"} — we'll be in touch when it's ready.</p>
+    <p style="margin:0;">— The Trims &amp; Bubbles team</p>
+  `;
+  await sendEmail({
+    to: order.contactEmail,
+    subject: "We've got your Trims & Bubbles order",
+    html: emailLayout(customerBody),
+    text: `Hi ${order.contactName}, thanks for your order! ${itemsText}. Total ${formatCents(order.totalCents)}. Payment in person on ${order.fulfillment === "SHIPPING" ? "delivery" : "pickup"}.`,
+  });
 }

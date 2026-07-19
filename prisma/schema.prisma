@@ -293,6 +293,10 @@ model Appointment {
   pickupAddress     String?
   cancelledAt       DateTime?          @db.Timestamptz(3)
   cancelReason      String?
+  // Non-null when this appointment is one dog within a single multi-dog
+  // booking; all sibling appointments (created back-to-back for the one
+  // groomer) share the same id so admin/portal can show them as one booking.
+  bookingGroupId    String?
   addOns            AppointmentAddOn[]
   photos            AppointmentPhoto[]
   payments          Payment[]
@@ -302,6 +306,7 @@ model Appointment {
   @@index([startAt])
   @@index([clientId])
   @@index([petId])
+  @@index([bookingGroupId])
   @@map("appointment")
 }
 
