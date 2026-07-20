@@ -3,22 +3,26 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { Menu, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { CartWidget } from "@/components/store/cart-widget";
+import { businessConfig } from "@/config/business";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/services", label: "Services & Pricing" },
-  { href: "/about", label: "About" },
   { href: "/gallery", label: "Gallery" },
+  { href: "/about", label: "About" },
   { href: "/reviews", label: "Reviews" },
   { href: "/store", label: "Shop" },
   { href: "/contact", label: "Contact" },
 ];
+
+const PHONE = businessConfig.contact.phone;
+const PHONE_HREF = `tel:${PHONE.replace(/\s+/g, "")}`;
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -28,12 +32,21 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center">
+        {/* `shrink-0` + a right margin keeps the wordmark from butting straight
+            into the first nav item at the 1024px breakpoint, where the bar is
+            at its tightest. */}
+        <Link href="/" className="mr-4 flex shrink-0 items-center xl:mr-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-horizontal.svg" alt="Trims & Bubbles" className="h-11 w-auto" />
+          <img src="/logo.svg" alt="Trims & Bubbles" className="h-10 w-auto lg:hidden" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-horizontal.svg"
+            alt="Trims & Bubbles"
+            className="hidden h-11 w-auto lg:block"
+          />
         </Link>
 
-        <nav className="hidden xl:flex items-center gap-1">
+        <nav className="hidden lg:flex items-center gap-1">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
@@ -49,9 +62,27 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-1 sm:gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            aria-label={`Call ${PHONE}`}
+            render={<a href={PHONE_HREF} />}
+          >
+            <Phone className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            className="hidden lg:inline-flex"
+            render={<a href={PHONE_HREF} aria-label={`Call ${PHONE}`} />}
+          >
+            <Phone className="h-4 w-4" />
+            {PHONE}
+          </Button>
+
           <CartWidget />
 
-          <div className="hidden xl:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             {session ? (
               <Button variant="outline" render={<Link href="/portal" />}>
                 My Account
@@ -64,9 +95,13 @@ export function SiteHeader() {
             <Button render={<Link href="/book" />}>Book Now</Button>
           </div>
 
+          <Button size="touch" className="lg:hidden" render={<Link href="/book" />}>
+            Book Now
+          </Button>
+
           <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
-            render={<Button variant="ghost" size="icon" className="xl:hidden" aria-label="Open menu" />}
+            render={<Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu" />}
           >
             <Menu className="h-6 w-6" />
           </SheetTrigger>

@@ -16,7 +16,7 @@ export async function SiteFooter() {
           <div>
             <div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.svg" alt="Trims & Bubbles" className="h-40 w-auto" />
+              <img src="/logo.svg" alt="Trims & Bubbles" className="h-16 w-auto" />
             </div>
             <EditableText contentKey="footer.tagline" as="p" className="mt-3 text-sm text-muted-foreground">
               {`${businessConfig.tagline}`}
@@ -30,6 +30,8 @@ export async function SiteFooter() {
               <li><Link href="/about" className="hover:text-foreground">About</Link></li>
               <li><Link href="/gallery" className="hover:text-foreground">Gallery</Link></li>
               <li><Link href="/reviews" className="hover:text-foreground">Reviews</Link></li>
+              <li><Link href="/store" className="hover:text-foreground">Shop</Link></li>
+              <li><Link href="/contact" className="hover:text-foreground">Contact</Link></li>
               <li><Link href="/book" className="hover:text-foreground">Book Now</Link></li>
             </ul>
           </div>

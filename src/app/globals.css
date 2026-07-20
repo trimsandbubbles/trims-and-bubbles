@@ -369,3 +369,69 @@
     display: none;
   }
 }
+
+/* =====================================================================
+   FULLCALENDAR THEMING — Admin calendar (src/components/admin/admin-calendar.tsx)
+   =====================================================================
+   Appended block only — do NOT edit the THEME TOKENS section above.
+
+   FullCalendar v6 ships no separate CSS file; it injects its own styles
+   (including a base64 data: URI icon font for the prev/next chevrons) into
+   a <style> tag at runtime. This app's CSP sends `font-src 'self'`, which
+   blocks that data: font, so the built-in toolbar's chevrons render as
+   empty "tofu" squares (no glyph at that codepoint in the fallback font).
+   admin-calendar.tsx works around this by disabling FullCalendar's built-in
+   toolbar (`headerToolbar={false}`) and driving its own prev/next/today/view
+   buttons — built from lucide-react icons and this app's <Button> — through
+   the calendar API instead. That also fixes the unbranded dark-blue chrome.
+
+   This block only themes the calendar's own grid/event chrome (border,
+   today highlight, non-business shading, and per-status event colours) via
+   FullCalendar's documented CSS custom properties and a couple of small
+   status colour tokens derived from the existing brand palette above. */
+
+:root {
+  /* Per-status appointment colours + one for blocked-off time, all mapped to
+     the brand coral/neutral ramps already defined above with a background/
+     foreground pair chosen for readable contrast (WCAG AA at this size). */
+  --cal-status-pending-bg: var(--coral-200);
+  --cal-status-pending-fg: var(--coral-900);
+  --cal-status-confirmed-bg: var(--accent-solid);
+  --cal-status-confirmed-fg: var(--accent-solid-foreground);
+  --cal-status-progress-bg: var(--neutral-800);
+  --cal-status-progress-fg: var(--neutral-50);
+  --cal-status-completed-bg: var(--neutral-300);
+  --cal-status-completed-fg: var(--neutral-800);
+  --cal-status-blocked-bg: var(--neutral-300);
+  --cal-status-blocked-fg: var(--neutral-700);
+}
+
+.dark {
+  --cal-status-pending-bg: var(--coral-800);
+  --cal-status-pending-fg: var(--coral-100);
+  --cal-status-confirmed-bg: var(--accent-solid);
+  --cal-status-confirmed-fg: var(--accent-solid-foreground);
+  --cal-status-progress-bg: var(--neutral-200);
+  --cal-status-progress-fg: var(--neutral-900);
+  --cal-status-completed-bg: var(--neutral-700);
+  --cal-status-completed-fg: var(--neutral-100);
+  --cal-status-blocked-bg: var(--neutral-700);
+  --cal-status-blocked-fg: var(--neutral-200);
+}
+
+/* Blocked-off time should read as "unavailable", not as a booking: a soft
+   diagonal hatch over whatever background colour is set inline, plus a
+   dashed border, regardless of light/dark mode. */
+.fc-event.fc-event--blocked {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in oklch, var(--foreground) 8%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+  border-style: dashed;
+}
+
+/* Legible, on-brand event text (FullCalendar defaults to white). */
+.fc-event .fc-event-main {
+  color: inherit;
+}

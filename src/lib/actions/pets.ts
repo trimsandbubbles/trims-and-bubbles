@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/session";
 
 const newPetSchema = z.object({
-  name: z.string().min(1, "Your dog needs a name").max(60, "That name is too long"),
+  // .trim() runs before the length checks, so "   " is rejected rather than
+  // being stored as a blank-looking name.
+  name: z.string().trim().min(1, "Your dog needs a name").max(60, "That name is too long"),
   breed: z.string().max(80).optional(),
   sizeBand: z.enum(["SMALL", "MEDIUM", "LARGE"]),
   weightKg: z.number().positive().max(200).optional(),
@@ -47,7 +49,9 @@ export async function createPet(input: z.infer<typeof newPetSchema>): Promise<Ac
 
 const editPetSchema = z.object({
   petId: z.string().min(1),
-  name: z.string().min(1, "Your dog needs a name").max(60, "That name is too long"),
+  // .trim() runs before the length checks, so "   " is rejected rather than
+  // being stored as a blank-looking name.
+  name: z.string().trim().min(1, "Your dog needs a name").max(60, "That name is too long"),
   breed: z.string().max(80).optional(),
   sizeBand: z.enum(["SMALL", "MEDIUM", "LARGE"]),
   weightKg: z.number().positive().max(200).optional(),

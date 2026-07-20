@@ -15,22 +15,22 @@ export function CartWidget({ className }: { className?: string }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={`Open cart, ${count} item${count === 1 ? "" : "s"}`}
-        className={cn(
-          "relative inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted",
-          className,
-        )}
-      >
-        <ShoppingBag className="h-5 w-5" />
-        {count > 0 && (
+      {count > 0 && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Open cart, ${count} item${count === 1 ? "" : "s"}`}
+          className={cn(
+            "relative inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted",
+            className,
+          )}
+        >
+          <ShoppingBag className="h-5 w-5" />
           <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-solid px-1 text-[10px] font-bold text-accent-solid-foreground">
             {count}
           </span>
-        )}
-      </button>
+        </button>
+      )}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="w-full gap-0 sm:max-w-md">

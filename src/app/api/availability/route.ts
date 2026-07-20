@@ -53,8 +53,25 @@ function resolveDisplayWindows(
   return weeklyHours[dayOfWeekFor(dateStr)] ?? [];
 }
 
+/** The regex only checks shape (YYYY-MM-DD); it happily accepts calendar
+ * nonsense like "2026-02-30" or "2026-13-01". Those then reach `new
+ * Date(...)`/Date.UTC calls downstream (getExceptionForDate, dayOfWeekFor)
+ * as an Invalid Date, which Prisma/pg can't serialize — that surfaced as an
+ * unhandled 500 with an empty body instead of a clean 400. Round-tripping
+ * through Date.UTC and comparing the components back out catches any date
+ * that doesn't actually exist on the calendar (including Feb 29 on a
+ * non-leap year) before it reaches any downstream date math. */
+function isRealCalendarDate(dateStr: string): boolean {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
 const querySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
+    .refine(isRealCalendarDate, "date must be a real calendar date"),
   // Preferred: the TOTAL duration to reserve (sum of every dog's service +
   // add-ons in a multi-dog booking). When present it's used directly.
   durationMinutes: z.coerce.number().int().positive().max(MAX_DURATION_MINUTES).optional(),

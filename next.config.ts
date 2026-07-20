@@ -46,8 +46,14 @@ const nextConfig: NextConfig = {
   experimental: {
     // Default is 1MB; the admin appointment photo upload sends a real phone
     // camera photo through a Server Action, which can easily be several MB.
+    //
+    // This MUST stay comfortably above MAX_INPUT_BYTES in src/lib/uploads.ts
+    // (12MB). If it sits at or below that limit, an oversized photo is
+    // truncated by Next before the upload code ever runs, and the user gets an
+    // uncaught "Unexpected end of form" 500 instead of the friendly
+    // "keep it under 12MB" message. Modern phone photos routinely exceed 10MB.
     serverActions: {
-      bodySizeLimit: "10mb",
+      bodySizeLimit: "16mb",
     },
   },
   async headers() {
