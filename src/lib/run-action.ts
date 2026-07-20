@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 
 /**
  * Calls a server action from a client component and ALWAYS gives the user feedback.
@@ -18,9 +19,21 @@ import { toast } from "sonner";
  */
 
 const GENERIC_ERROR = "Something went wrong at our end. Please try again — or give us a call and we'll sort it out.";
-const SESSION_ERROR = "Your session has expired. Please log in again, then try once more.";
+const SESSION_ERROR = "You've been logged out. Please log in again, then try once more.";
 
 type AnyActionResult = { status: "success" | "error"; message?: string };
+
+/** True if the browser still has a valid session. Used only to explain a
+ * failure after the fact, so it fails OPEN: if the check itself errors we
+ * assume the session is fine and fall back to the generic message. */
+async function hasLiveSession(): Promise<boolean> {
+  try {
+    const { data } = await authClient.getSession();
+    return Boolean(data?.session);
+  } catch {
+    return true;
+  }
+}
 
 export type RunActionOptions<T> = {
   /** Toast shown on success. Omit for no success toast. */
@@ -44,11 +57,14 @@ export async function runAction<T extends AnyActionResult>(
   try {
     result = await action();
   } catch (error) {
-    const raw = error instanceof Error ? error.message : String(error);
-    // session.ts throws these prefixes; everything else is genuinely unexpected.
-    const isAuth = raw.startsWith("UNAUTHORIZED") || raw.startsWith("FORBIDDEN");
-    const message = isAuth ? SESSION_ERROR : GENERIC_ERROR;
     console.error("[runAction] server action threw:", error);
+    // We can't tell WHY it threw from the message: Next.js redacts real Server
+    // Action error text in production builds, so the "UNAUTHORIZED" thrown by
+    // session.ts never reaches the browser. Ask the auth endpoint directly
+    // instead — an expired session is by far the most common cause, and
+    // "log in again" is a fix the user can actually act on, whereas the
+    // generic message would send them off to phone the salon for nothing.
+    const message = (await hasLiveSession()) ? GENERIC_ERROR : SESSION_ERROR;
     toast.error(message);
     options.onError?.(message);
     return null;

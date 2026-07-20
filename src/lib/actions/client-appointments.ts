@@ -61,7 +61,15 @@ export async function cancelMyAppointment(input: { appointmentId: string; reason
     include: { pet: true, primaryService: true },
     orderBy: { startAt: "asc" },
   });
-  const cancelled = siblings.filter((a) => a.status === "PENDING_PAYMENT" || a.status === "CONFIRMED");
+  // Only sweep up siblings that are BOTH still cancellable and still in the
+  // future. Without the time check, cancelling a later dog in a group would
+  // silently cancel an earlier one that has already started — the groomer
+  // might be mid-groom on it, and staff don't always advance the status to
+  // IN_PROGRESS in time for that to be caught by status alone.
+  const now = Date.now();
+  const cancelled = siblings.filter(
+    (a) => (a.status === "PENDING_PAYMENT" || a.status === "CONFIRMED") && a.startAt.getTime() > now,
+  );
   if (cancelled.length === 0) {
     return { status: "error", message: "This booking can no longer be cancelled online — please give us a call." };
   }

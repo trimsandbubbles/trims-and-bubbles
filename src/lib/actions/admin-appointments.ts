@@ -139,17 +139,29 @@ export async function updateAppointmentStatus(appointmentId: string, status: str
     // bookingGroupId. Cancelling one dog but silently leaving the others booked
     // would strand the customer with half a booking, so take the whole group —
     // this matches what the customer-side cancel already does.
+    let alsoCancelled: { pet: { name: string }; primaryService: { name: string } }[] = [];
     if (updated.bookingGroupId) {
-      await prisma.appointment.updateMany({
+      const siblings = await prisma.appointment.findMany({
         where: {
           bookingGroupId: updated.bookingGroupId,
           id: { not: updated.id },
           status: { in: ["PENDING_PAYMENT", "CONFIRMED", "IN_PROGRESS"] },
         },
-        data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: cleanReason },
+        include: { pet: true, primaryService: true },
+        orderBy: { startAt: "asc" },
       });
+      if (siblings.length > 0) {
+        await prisma.appointment.updateMany({
+          where: { id: { in: siblings.map((s) => s.id) } },
+          data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: cleanReason },
+        });
+        alsoCancelled = siblings;
+      }
     }
-    await sendCancellationEmail(updated);
+    // The email must name EVERY dog that was cancelled. Sending one that
+    // mentions only the dog the owner happened to click would leave the
+    // customer believing their other dogs are still booked.
+    await sendCancellationEmail(updated, alsoCancelled);
   }
 
   revalidateAppointment(appointmentId);
@@ -167,7 +179,10 @@ type AppointmentForEmail = {
 
 /** Emails the customer that their appointment was cancelled, with the reason
  * (if given) and a nudge to rebook. Fire-and-forget: sendEmail is fail-soft. */
-async function sendCancellationEmail(apt: AppointmentForEmail): Promise<void> {
+async function sendCancellationEmail(
+  apt: AppointmentForEmail,
+  alsoCancelled: { pet: { name: string }; primaryService: { name: string } }[] = [],
+): Promise<void> {
   const to = apt.client.user.email;
   if (!to) return;
 
@@ -176,19 +191,39 @@ async function sendCancellationEmail(apt: AppointmentForEmail): Promise<void> {
     ? `<p style="margin:0 0 12px;">Reason: ${escapeHtml(apt.cancelReason)}</p>`
     : "";
 
+  // A multi-dog booking is several rows sharing a bookingGroupId; cancelling
+  // one cancels them all, so list every dog rather than just the clicked one.
+  const all = [apt, ...alsoCancelled];
+  const isGroup = all.length > 1;
+  const listHtml = `<ul style="margin:0 0 12px;padding-left:18px;">${all
+    .map((a) => `<li style="margin:0 0 4px;"><strong>${escapeHtml(a.pet.name)}</strong> — ${escapeHtml(a.primaryService.name)}</li>`)
+    .join("")}</ul>`;
+  const listText = all.map((a) => `${a.pet.name}: ${a.primaryService.name}`).join("; ");
+  const dogNames = all.map((a) => a.pet.name);
+  const dogsPhrase =
+    dogNames.length === 1
+      ? dogNames[0]
+      : `${dogNames.slice(0, -1).join(", ")} and ${dogNames[dogNames.length - 1]}`;
+
+  const headline = isGroup
+    ? `<p style="margin:0 0 12px;">We're sorry, but your booking on <strong>${escapeHtml(when)}</strong> has been cancelled. That covers all ${all.length} dogs on this booking:</p>${listHtml}`
+    : `<p style="margin:0 0 12px;">We're sorry, but your <strong>${escapeHtml(apt.primaryService.name)}</strong> appointment for ${escapeHtml(apt.pet.name)} on <strong>${escapeHtml(when)}</strong> has been cancelled.</p>`;
+
   const body = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(apt.client.user.name)},</p>
-    <p style="margin:0 0 12px;">We're sorry, but your <strong>${escapeHtml(apt.primaryService.name)}</strong> appointment for ${escapeHtml(apt.pet.name)} on <strong>${escapeHtml(when)}</strong> has been cancelled.</p>
+    ${headline}
     ${reasonHtml}
-    <p style="margin:0 0 12px;">We'd love to see ${escapeHtml(apt.pet.name)} another time — you can book a new spot whenever suits you.</p>
+    <p style="margin:0 0 12px;">We'd love to see ${escapeHtml(dogsPhrase)} another time — you can book a new spot whenever suits you.</p>
     <p style="margin:0;">With love,<br/>The Trims &amp; Bubbles team</p>
   `;
 
   await sendEmail({
     to,
-    subject: `Your Trims & Bubbles appointment on ${when} was cancelled`,
+    subject: isGroup
+      ? `Your Trims & Bubbles booking on ${when} was cancelled`
+      : `Your Trims & Bubbles appointment on ${when} was cancelled`,
     html: emailLayout(body),
-    text: `Hi ${apt.client.user.name}, your ${apt.primaryService.name} appointment for ${apt.pet.name} on ${when} has been cancelled.${apt.cancelReason ? ` Reason: ${apt.cancelReason}.` : ""} You're welcome to book a new spot whenever suits you. — Trims & Bubbles`,
+    text: `Hi ${apt.client.user.name}, your booking on ${when} has been cancelled (${listText}).${apt.cancelReason ? ` Reason: ${apt.cancelReason}.` : ""} You're welcome to book a new spot whenever suits you. — Trims & Bubbles`,
   });
 }
 
