@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { getDayModesMap, getFixedSlotsMap } from "@/lib/availability-data";
 import { AdminCalendar, type CalendarEventDTO } from "@/components/admin/admin-calendar";
 
 export const metadata: Metadata = { title: "Calendar | Admin" };
@@ -30,7 +31,7 @@ export default async function AdminCalendarPage() {
   const windowStart = new Date(now.getTime() - 14 * 24 * 60 * 60_000);
   const windowEnd = new Date(now.getTime() + 60 * 24 * 60 * 60_000);
 
-  const [appointments, blocks, activeHours] = await Promise.all([
+  const [appointments, blocks, activeHours, modes, fixedSlotsMap] = await Promise.all([
     prisma.appointment.findMany({
       where: { startAt: { gte: windowStart, lt: windowEnd }, status: { notIn: ["CANCELLED"] } },
       include: { pet: true, primaryService: true },
@@ -44,22 +45,43 @@ export default async function AdminCalendarPage() {
       where: { isActive: true },
       orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
     }),
+    getDayModesMap(),
+    getFixedSlotsMap(),
   ]);
+
+  // A weekday is open if: (mode OPEN_HOURS and it has >=1 active window) OR
+  // (mode FIXED_SLOTS and it has >=1 active fixed slot). A day switched to
+  // FIXED_SLOTS has its AvailabilityRule rows stored inactive (so `activeHours`
+  // naturally excludes it already), and its bookable ranges come from
+  // AvailabilitySlot instead — those need to feed businessHours/slot bounds too,
+  // or a FIXED_SLOTS day would wrongly render as fully closed.
+  const openHoursRules = activeHours.filter((rule) => (modes[rule.dayOfWeek] ?? "OPEN_HOURS") !== "FIXED_SLOTS");
+  const fixedSlotRules = Object.entries(fixedSlotsMap)
+    .filter(([dayOfWeek]) => modes[Number(dayOfWeek)] === "FIXED_SLOTS")
+    .flatMap(([dayOfWeek, slots]) => slots.map((slot) => ({ dayOfWeek: Number(dayOfWeek), ...slot })));
 
   // FullCalendar's `businessHours` shades non-working hours AND fully closed
   // days (a weekday with no entry at all renders as one long shaded block),
   // so this doubles as the "closed days look closed" fix.
-  const businessHours = activeHours.map((rule) => ({
-    daysOfWeek: [rule.dayOfWeek],
-    startTime: rule.startTime,
-    endTime: rule.endTime,
-  }));
+  const businessHours = [
+    ...openHoursRules.map((rule) => ({
+      daysOfWeek: [rule.dayOfWeek],
+      startTime: rule.startTime,
+      endTime: rule.endTime,
+    })),
+    ...fixedSlotRules.map((slot) => ({
+      daysOfWeek: [slot.dayOfWeek],
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+    })),
+  ];
 
+  const allTimes = [...openHoursRules, ...fixedSlotRules];
   let slotMinTime = DEFAULT_SLOT_MIN_TIME;
   let slotMaxTime = DEFAULT_SLOT_MAX_TIME;
-  if (activeHours.length > 0) {
-    const earliestStart = Math.min(...activeHours.map((r) => timeToMinutes(r.startTime)));
-    const latestEnd = Math.max(...activeHours.map((r) => timeToMinutes(r.endTime)));
+  if (allTimes.length > 0) {
+    const earliestStart = Math.min(...allTimes.map((r) => timeToMinutes(r.startTime)));
+    const latestEnd = Math.max(...allTimes.map((r) => timeToMinutes(r.endTime)));
     slotMinTime = minutesToTime(Math.floor((earliestStart - 60) / 30) * 30);
     slotMaxTime = minutesToTime(Math.ceil((latestEnd + 30) / 30) * 30);
   }

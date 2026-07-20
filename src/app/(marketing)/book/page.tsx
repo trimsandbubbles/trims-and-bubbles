@@ -3,6 +3,7 @@ import { getActiveServicesWithPricing } from "@/lib/services-data";
 import { getCurrentSession } from "@/lib/session";
 import { getMyPets } from "@/lib/actions/client-profile";
 import { prisma } from "@/lib/prisma";
+import { getDayModesMap, getFixedSlotsMap } from "@/lib/availability-data";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import type { ServiceDTO } from "@/components/booking/types";
 import { AvailabilityGlance } from "@/components/booking/availability-glance";
@@ -11,10 +12,12 @@ import { NeedHelp } from "@/components/need-help";
 export const metadata: Metadata = { title: "Book an Appointment" };
 
 export default async function BookPage() {
-  const [allServices, session, rules] = await Promise.all([
+  const [allServices, session, rules, modes, fixedSlots] = await Promise.all([
     getActiveServicesWithPricing(),
     getCurrentSession(),
     prisma.availabilityRule.findMany(),
+    getDayModesMap(),
+    getFixedSlotsMap(),
   ]);
 
   // Sizes are SMALL/MEDIUM/LARGE now (XL was removed from the offering). The DB
@@ -39,12 +42,20 @@ export default async function BookPage() {
     pets = await getMyPets();
   }
 
-  const activeDays = new Set(rules.filter((r) => r.isActive).map((r) => r.dayOfWeek));
-  const closedWeekdays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !activeDays.has(d));
+  // A weekday is open/bookable if: (mode is OPEN_HOURS and it has >=1 active
+  // window) OR (mode is FIXED_SLOTS and it has >=1 active fixed slot). A day
+  // switched to FIXED_SLOTS has its AvailabilityRule rows stored inactive, so
+  // its openness must come from fixedSlots instead of the rule rows.
+  const activeOpenHoursDays = new Set(rules.filter((r) => r.isActive).map((r) => r.dayOfWeek));
+  const closedWeekdays = [0, 1, 2, 3, 4, 5, 6].filter((d) => {
+    const mode = modes[d] ?? "OPEN_HOURS";
+    const isOpen = mode === "FIXED_SLOTS" ? (fixedSlots[d]?.length ?? 0) > 0 : activeOpenHoursDays.has(d);
+    return !isOpen;
+  });
 
   return (
     <div>
-      <AvailabilityGlance rules={rules} />
+      <AvailabilityGlance rules={rules} modes={modes} fixedSlots={fixedSlots} />
       <BookingWizard
         services={services}
         addOnServices={addOnServices}

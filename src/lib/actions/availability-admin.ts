@@ -66,6 +66,104 @@ export async function updateWeeklyHours(days: z.infer<typeof dayScheduleSchema>[
   return { status: "success" };
 }
 
+// ── Combined weekly availability (modes + open-hours windows + fixed slots) ──
+//
+// One "Save" persists the whole week. Every day carries BOTH its open-hours
+// windows AND its fixed slots, so toggling a day's mode back and forth never
+// loses the other set of times. `mode` decides which set is live: a day's
+// AvailabilityRule rows are active only in OPEN_HOURS mode, its
+// AvailabilitySlot rows only in FIXED_SLOTS mode.
+
+const daySaveSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  mode: z.enum(["OPEN_HOURS", "FIXED_SLOTS"]),
+  /** Open/closed toggle — only meaningful in OPEN_HOURS mode. */
+  isActive: z.boolean(),
+  windows: z.array(windowSchema).min(1, "Each day needs at least one time range").max(4),
+  /** Hand-defined fixed slots. May be empty (a fixed-slots day with no slots
+   * is simply closed that day). */
+  fixedSlots: z.array(windowSchema).max(24),
+});
+
+function assertOrderedNonOverlapping(
+  ranges: { startTime: string; endTime: string }[],
+  dayName: string,
+  noun: string,
+): string | null {
+  const sorted = [...ranges].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  for (const r of sorted) {
+    if (r.endTime <= r.startTime) return `${dayName}: each ${noun}'s finish time must be after its start time.`;
+  }
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].startTime < sorted[i - 1].endTime) {
+      return `${dayName}: the ${noun}s overlap — adjust them so they don't.`;
+    }
+  }
+  return null;
+}
+
+export async function saveWeeklyAvailability(days: z.infer<typeof daySaveSchema>[]): Promise<ActionResult> {
+  await requireStaffOrOwner();
+  const parsed = z.array(daySaveSchema).length(7, "Provide all seven days").safeParse(days);
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? "Please check the availability entered." };
+  }
+
+  for (const d of parsed.data) {
+    if (d.mode === "OPEN_HOURS" && d.isActive) {
+      const err = assertOrderedNonOverlapping(d.windows, DAY_NAMES[d.dayOfWeek], "time range");
+      if (err) return { status: "error", message: err };
+    }
+    if (d.mode === "FIXED_SLOTS") {
+      const err = assertOrderedNonOverlapping(d.fixedSlots, DAY_NAMES[d.dayOfWeek], "slot");
+      if (err) return { status: "error", message: err };
+    }
+  }
+
+  await prisma.$transaction([
+    // DaySchedule: one row per weekday holding the mode.
+    ...parsed.data.map((d) =>
+      prisma.daySchedule.upsert({
+        where: { dayOfWeek: d.dayOfWeek },
+        update: { mode: d.mode },
+        create: { dayOfWeek: d.dayOfWeek, mode: d.mode },
+      }),
+    ),
+    // Open-hours windows: remembered for every day, active only where the day
+    // is OPEN_HOURS and switched on.
+    prisma.availabilityRule.deleteMany({}),
+    prisma.availabilityRule.createMany({
+      data: parsed.data.flatMap((d) =>
+        d.windows.map((w) => ({
+          dayOfWeek: d.dayOfWeek,
+          isActive: d.mode === "OPEN_HOURS" && d.isActive,
+          startTime: w.startTime,
+          endTime: w.endTime,
+        })),
+      ),
+    }),
+    // Fixed slots: remembered for every day, active only where the day is
+    // FIXED_SLOTS.
+    prisma.availabilitySlot.deleteMany({}),
+    prisma.availabilitySlot.createMany({
+      data: parsed.data.flatMap((d) =>
+        d.fixedSlots.map((w) => ({
+          dayOfWeek: d.dayOfWeek,
+          isActive: d.mode === "FIXED_SLOTS",
+          startTime: w.startTime,
+          endTime: w.endTime,
+        })),
+      ),
+    }),
+  ]);
+
+  revalidatePath("/admin/availability");
+  revalidatePath("/admin/calendar");
+  revalidatePath("/contact");
+  revalidatePath("/book");
+  return { status: "success" };
+}
+
 const exceptionSchema = z
   .object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),

@@ -1,29 +1,35 @@
 import { CalendarClock } from "lucide-react";
-import { groupWeeklyRules } from "@/lib/weekly-hours";
+import {
+  fmtTime,
+  resolveWeeklyDisplay,
+  type AvailabilityDisplayMode,
+  type TimeRange,
+  type WeeklyRuleRow,
+} from "@/lib/weekly-hours";
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 // Monday-first display order.
 const ORDER = [1, 2, 3, 4, 5, 6, 0];
-
-function fmtTime(hhmm: string) {
-  const [h, m] = hhmm.split(":").map(Number);
-  const ampm = h >= 12 ? "pm" : "am";
-  const hr = h % 12 === 0 ? 12 : h % 12;
-  return m === 0 ? `${hr}${ampm}` : `${hr}:${String(m).padStart(2, "0")}${ampm}`;
-}
 
 /**
  * A quick "here's when we're open" summary shown at the top of the booking
  * page, so people get an immediate feel for availability before working
  * through the wizard (they still pick an exact live time on the calendar in
  * the Date & time step).
+ *
+ * Mode-aware: a FIXED_SLOTS weekday shows its individual fixed slots instead
+ * of AvailabilityRule windows (which are stored inactive for such a day).
  */
 export function AvailabilityGlance({
   rules,
+  modes = {},
+  fixedSlots = {},
 }: {
-  rules: { dayOfWeek: number; isActive: boolean; startTime: string; endTime: string }[];
+  rules: WeeklyRuleRow[];
+  modes?: Record<number, AvailabilityDisplayMode>;
+  fixedSlots?: Record<number, TimeRange[]>;
 }) {
-  const grouped = groupWeeklyRules(rules);
+  const grouped = resolveWeeklyDisplay(rules, modes, fixedSlots);
   const days = ORDER.map((d) => grouped.find((r) => r.dayOfWeek === d)).filter((r): r is NonNullable<typeof r> => !!r);
   if (days.length === 0) return null;
 
@@ -37,9 +43,9 @@ export function AvailabilityGlance({
           {days.map((d) => (
             <div key={d.dayOfWeek} className="flex items-center justify-between gap-3 border-b border-border/60 py-0.5 last:border-0">
               <span className="font-semibold">{DAY_LABELS[d.dayOfWeek]}</span>
-              <span className={d.isActive ? "text-muted-foreground" : "text-muted-foreground/70"}>
-                {d.isActive
-                  ? d.windows.map((w) => `${fmtTime(w.startTime)} – ${fmtTime(w.endTime)}`).join(" & ")
+              <span className={d.isOpen ? "text-muted-foreground" : "text-muted-foreground/70"}>
+                {d.isOpen
+                  ? d.ranges.map((w) => `${fmtTime(w.startTime)} – ${fmtTime(w.endTime)}`).join(" & ")
                   : "Closed"}
               </span>
             </div>

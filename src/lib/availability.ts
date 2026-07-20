@@ -13,12 +13,23 @@ export type BusyInterval = {
   endAt: Date;
 };
 
-/** One open window of wall-clock times ("09:00"/"17:00"). */
+/** One open window of wall-clock times ("09:00"/"17:00"). Also used to
+ * describe a single fixed slot (its start/end). */
 export type DayWindow = { startTime: string; endTime: string };
 
 /** A day's open windows. A day may have SEVERAL windows (e.g. 09:00-12:00 and
  * 15:00-20:00 with a mid-day break). Empty array or null = closed. */
 export type DayHours = DayWindow[] | null;
+
+/**
+ * How a weekday's bookable times are decided.
+ * - OPEN_HOURS: open windows; start times are auto-offered on a grid across
+ *   each window, sized to the booking's duration (the original behaviour).
+ * - FIXED_SLOTS: the owner hand-defines exact openings; each offers exactly one
+ *   start time (its own start), and a booking is offered only if its whole
+ *   duration finishes by that slot's end. One booking per slot.
+ */
+export type AvailabilityMode = "OPEN_HOURS" | "FIXED_SLOTS";
 
 export type DateException = {
   type: "CLOSED" | "CUSTOM_HOURS";
@@ -33,6 +44,12 @@ export type AvailabilityInputs = {
   durationMinutes: number;
   /** Recurring weekly hours, keyed by day of week (0 = Sunday .. 6 = Saturday). */
   weeklyHours: Record<number, DayHours>;
+  /** Per-weekday scheduling mode, keyed by day of week. A missing entry means
+   * OPEN_HOURS, so callers that don't set this get the original behaviour. */
+  modes?: Record<number, AvailabilityMode>;
+  /** Hand-defined fixed slots per weekday (only consulted when that weekday's
+   * mode is FIXED_SLOTS), keyed by day of week. */
+  fixedSlots?: Record<number, DayWindow[]>;
   /** One-off override for this exact date, if any. Takes precedence over weeklyHours. */
   exception?: DateException | null;
   /** Existing appointments (non-cancelled) and ad hoc blocks that already occupy time. */
@@ -63,15 +80,45 @@ function zonedWallClockToInstant(dateStr: string, hhmm: string): Date {
   return fromZonedTime(`${dateStr}T${hhmm}:00`, BUSINESS_TIMEZONE);
 }
 
-function resolveDayHours(inputs: Pick<AvailabilityInputs, "dateStr" | "weeklyHours" | "exception">): DayWindow[] {
+/**
+ * Resolves what a date's bookable ranges are AND how to interpret them.
+ *
+ * A one-off exception always wins and is expressed as OPEN_HOURS (a closed day
+ * has no ranges; a custom-hours day is one window) — so an exception behaves
+ * identically regardless of the weekday's usual mode.
+ *
+ * `ranges` means open windows in OPEN_HOURS mode, or the fixed slots in
+ * FIXED_SLOTS mode. Empty ranges = closed.
+ */
+export type ResolvedDaySchedule = { mode: AvailabilityMode; ranges: DayWindow[] };
+
+function resolveDaySchedule(
+  inputs: Pick<AvailabilityInputs, "dateStr" | "weeklyHours" | "modes" | "fixedSlots" | "exception">,
+): ResolvedDaySchedule {
   if (inputs.exception) {
-    if (inputs.exception.type === "CLOSED") return [];
+    if (inputs.exception.type === "CLOSED") return { mode: "OPEN_HOURS", ranges: [] };
     if (inputs.exception.customStartTime && inputs.exception.customEndTime) {
-      return [{ startTime: inputs.exception.customStartTime, endTime: inputs.exception.customEndTime }];
+      return {
+        mode: "OPEN_HOURS",
+        ranges: [{ startTime: inputs.exception.customStartTime, endTime: inputs.exception.customEndTime }],
+      };
     }
   }
   const dow = dayOfWeekFor(inputs.dateStr);
-  return inputs.weeklyHours[dow] ?? [];
+  const mode = inputs.modes?.[dow] ?? "OPEN_HOURS";
+  if (mode === "FIXED_SLOTS") {
+    return { mode, ranges: inputs.fixedSlots?.[dow] ?? [] };
+  }
+  return { mode: "OPEN_HOURS", ranges: inputs.weeklyHours[dow] ?? [] };
+}
+
+/** The bookable ranges for a date, ignoring the OPEN_HOURS/FIXED_SLOTS
+ * distinction — used by display helpers that just need "when is this day open".
+ * In FIXED_SLOTS mode these are the individual slots. */
+export function resolveDayRanges(
+  inputs: Pick<AvailabilityInputs, "dateStr" | "weeklyHours" | "modes" | "fixedSlots" | "exception">,
+): DayWindow[] {
+  return resolveDaySchedule(inputs).ranges;
 }
 
 function intervalsOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
@@ -104,8 +151,8 @@ export function getDaySlotsWithStatus(inputs: AvailabilityInputs): { open: OpenS
   const minLeadMinutes = inputs.minLeadMinutes ?? 60;
   const now = inputs.now ?? new Date();
 
-  const windows = resolveDayHours(inputs);
-  if (windows.length === 0) return { open: [], booked: [] };
+  const { mode, ranges } = resolveDaySchedule(inputs);
+  if (ranges.length === 0) return { open: [], booked: [] };
 
   // Busy ranges get a trailing buffer added so consecutive bookings keep a
   // gap — the DB constraint (no buffer) is the hard rule; this is the softer
@@ -121,21 +168,36 @@ export function getDaySlotsWithStatus(inputs: AvailabilityInputs): { open: OpenS
 
   const open: OpenSlot[] = [];
   const booked: OpenSlot[] = [];
-  // Each window is its own slot grid: a booking must START and FINISH within
-  // one window, so a mid-day break is never overlapped by an appointment.
-  for (const w of windows) {
-    const windowStart = zonedWallClockToInstant(inputs.dateStr, w.startTime);
-    const windowEnd = zonedWallClockToInstant(inputs.dateStr, w.endTime);
-    if (windowEnd <= windowStart) continue;
 
-    for (let start = windowStart.getTime(); start + durationMs <= windowEnd.getTime(); start += stepMs) {
-      const slotStart = new Date(start);
-      const slotEnd = new Date(start + durationMs);
+  // Considers a single candidate [slotStart, slotStart+duration): drops it if
+  // it's before the lead time, otherwise files it under open or booked. Shared
+  // by both modes so the buffer/lead/clash rules stay identical.
+  const consider = (slotStartMs: number) => {
+    const slotStart = new Date(slotStartMs);
+    if (slotStart < earliestStart) return;
+    const slotEnd = new Date(slotStartMs + durationMs);
+    const clashes = bufferedBusy.some((b) => intervalsOverlap(slotStart, slotEnd, b.startAt, b.endAt));
+    (clashes ? booked : open).push({ startAt: slotStart, endAt: slotEnd });
+  };
 
-      if (slotStart < earliestStart) continue;
+  for (const r of ranges) {
+    const rangeStart = zonedWallClockToInstant(inputs.dateStr, r.startTime);
+    const rangeEnd = zonedWallClockToInstant(inputs.dateStr, r.endTime);
+    if (rangeEnd <= rangeStart) continue;
 
-      const clashes = bufferedBusy.some((b) => intervalsOverlap(slotStart, slotEnd, b.startAt, b.endAt));
-      (clashes ? booked : open).push({ startAt: slotStart, endAt: slotEnd });
+    if (mode === "FIXED_SLOTS") {
+      // A fixed slot offers exactly ONE start (its own start), and only if the
+      // whole booking finishes by the slot's end. That yields "one booking per
+      // slot": once its start is taken, the clash check hides the slot.
+      if (rangeStart.getTime() + durationMs <= rangeEnd.getTime()) {
+        consider(rangeStart.getTime());
+      }
+    } else {
+      // OPEN_HOURS: each window is its own slot grid — a booking must START and
+      // FINISH within one window, so a mid-day break is never overlapped.
+      for (let start = rangeStart.getTime(); start + durationMs <= rangeEnd.getTime(); start += stepMs) {
+        consider(start);
+      }
     }
   }
 

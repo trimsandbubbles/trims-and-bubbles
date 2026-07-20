@@ -144,6 +144,16 @@ enum ExceptionType {
   CUSTOM_HOURS
 }
 
+/// How a weekday's bookable times are decided.
+/// OPEN_HOURS  = open windows; the system auto-offers start times across them,
+///               sized to whatever the customer books (the original behaviour).
+/// FIXED_SLOTS = the owner hand-defines exact openings (e.g. 08:00-09:00,
+///               10:00-12:00); customers may only book those, one per slot.
+enum AvailabilityMode {
+  OPEN_HOURS
+  FIXED_SLOTS
+}
+
 enum OrderFulfillment {
   PICKUP
   SHIPPING
@@ -347,6 +357,30 @@ model AvailabilityRule {
 
   @@index([dayOfWeek])
   @@map("availability_rule")
+}
+
+/// One row per weekday choosing how that day's bookable times are decided.
+/// Missing row = OPEN_HOURS (so days without a row behave exactly as before).
+model DaySchedule {
+  dayOfWeek Int              @id // 0 = Sunday .. 6 = Saturday
+  mode      AvailabilityMode @default(OPEN_HOURS)
+
+  @@map("day_schedule")
+}
+
+/// A hand-defined bookable opening for a weekday in FIXED_SLOTS mode
+/// (e.g. Sunday 08:00-09:00). Recurs every week. Each slot offers exactly one
+/// start time (its startTime) and takes one booking; a booking is offered only
+/// if its whole duration finishes by endTime.
+model AvailabilitySlot {
+  id        String  @id @default(cuid())
+  dayOfWeek Int // 0 = Sunday .. 6 = Saturday
+  startTime String // "08:00"
+  endTime   String // "09:00"
+  isActive  Boolean @default(true)
+
+  @@index([dayOfWeek])
+  @@map("availability_slot")
 }
 
 /// One-off overrides to the recurring hours (public holidays, custom hours).

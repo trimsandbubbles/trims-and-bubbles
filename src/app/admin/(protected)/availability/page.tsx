@@ -6,8 +6,10 @@ import { ExceptionsEditor } from "@/components/admin/exceptions-editor";
 export const metadata: Metadata = { title: "Availability | Admin" };
 
 export default async function AdminAvailabilityPage() {
-  const [rules, exceptions] = await Promise.all([
+  const [rules, daySchedules, fixedSlots, exceptions] = await Promise.all([
     prisma.availabilityRule.findMany(),
+    prisma.daySchedule.findMany(),
+    prisma.availabilitySlot.findMany(),
     prisma.availabilityException.findMany({
       where: { date: { gte: new Date(new Date().toISOString().slice(0, 10)) } },
       orderBy: { date: "asc" },
@@ -20,7 +22,15 @@ export default async function AdminAvailabilityPage() {
       <p className="mt-1 text-muted-foreground">Set your usual weekly hours, plus any one-off closures or custom days.</p>
 
       <div className="mt-6 space-y-6">
-        <AvailabilityEditor initialRules={rules} />
+        <AvailabilityEditor
+          initialRules={rules}
+          initialModes={daySchedules.map((d) => ({ dayOfWeek: d.dayOfWeek, mode: d.mode }))}
+          initialFixedSlots={fixedSlots.map((s) => ({
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+          }))}
+        />
         <ExceptionsEditor
           initialExceptions={exceptions.map((e) => ({
             id: e.id,

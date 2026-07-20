@@ -336,6 +336,115 @@ describe("getDaySlotsWithStatus", () => {
   });
 });
 
+describe("FIXED_SLOTS mode", () => {
+  // Sunday (dow 0) switched to fixed slots: 08:00-09:00 and 10:00-12:00, the
+  // owner's hand-picked openings. All times AEST (winter, UTC+10).
+  const SUNDAY_FIXED = {
+    modes: { 0: "FIXED_SLOTS" as const },
+    fixedSlots: { 0: [{ startTime: "08:00", endTime: "09:00" }, { startTime: "10:00", endTime: "12:00" }] },
+  };
+
+  it("offers exactly one start per slot — the slot's own start", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      ...SUNDAY_FIXED,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    // Two slots, both long enough for 60 min → two offered starts (08:00, 10:00).
+    expect(slots.map((s) => s.startAt.toISOString())).toEqual([
+      "2026-07-11T22:00:00.000Z", // 08:00 AEST
+      "2026-07-12T00:00:00.000Z", // 10:00 AEST
+    ]);
+    // NOT a grid: 10:30/11:00 inside the 10-12 slot are never offered.
+    expect(slots.some((s) => s.startAt.toISOString() === "2026-07-12T00:30:00.000Z")).toBe(false);
+  });
+
+  it("sizes the appointment to the booking duration, starting at the slot start", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY,
+      durationMinutes: 90, // fits only the 2h slot, runs 10:00-11:30
+      weeklyHours: WEEKLY_HOURS,
+      ...SUNDAY_FIXED,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots).toHaveLength(1);
+    expect(slots[0].startAt.toISOString()).toBe("2026-07-12T00:00:00.000Z"); // 10:00 AEST
+    expect(slots[0].endAt.toISOString()).toBe("2026-07-12T01:30:00.000Z"); // 11:30 AEST
+  });
+
+  it("does not offer a slot the booking can't finish inside", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY,
+      durationMinutes: 61, // doesn't fit the 1h slot; fits the 2h slot only
+      weeklyHours: WEEKLY_HOURS,
+      ...SUNDAY_FIXED,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots.map((s) => s.startAt.toISOString())).toEqual(["2026-07-12T00:00:00.000Z"]); // only 10:00
+  });
+
+  it("once a slot's start is taken, the whole slot stops being offered", () => {
+    const { open, booked } = getDaySlotsWithStatus({
+      dateStr: SUNDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      ...SUNDAY_FIXED,
+      // A 20-min nail trim already sits at the start of the 10:00 slot.
+      busy: [{ startAt: new Date("2026-07-12T00:00:00.000Z"), endAt: new Date("2026-07-12T00:20:00.000Z") }],
+      bufferMinutes: 15,
+      now: FAR_PAST_NOW,
+    });
+    // 10:00 is now booked (not offered); 08:00 remains open.
+    expect(open.map((s) => s.startAt.toISOString())).toEqual(["2026-07-11T22:00:00.000Z"]);
+    expect(booked.map((s) => s.startAt.toISOString())).toEqual(["2026-07-12T00:00:00.000Z"]);
+  });
+
+  it("a closed fixed-slots day (no slots) offers nothing", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      modes: { 0: "FIXED_SLOTS" },
+      fixedSlots: {}, // no slots defined for Sunday
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots).toEqual([]);
+  });
+
+  it("a one-off exception still overrides a fixed-slots weekday", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      ...SUNDAY_FIXED,
+      exception: { type: "CLOSED" },
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots).toEqual([]);
+  });
+
+  it("leaves OPEN_HOURS weekdays untouched when only Sunday is fixed", () => {
+    // Tuesday is still a normal 9-5 grid even though Sunday is fixed-slots.
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY,
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      ...SUNDAY_FIXED,
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    // A full 9-5 grid for 60 min at 30-min steps = starts 09:00..16:00 = 15 slots.
+    expect(slots).toHaveLength(15);
+  });
+});
+
 describe("isSlotStillOpen", () => {
   const busy = [{ startAt: new Date("2026-07-14T00:00:00.000Z"), endAt: new Date("2026-07-14T01:00:00.000Z") }];
 

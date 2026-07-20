@@ -3,7 +3,8 @@ import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { ContactForm } from "@/components/contact-form";
 import { prisma } from "@/lib/prisma";
 import { getBusinessDetails } from "@/lib/business-data";
-import { groupWeeklyRules } from "@/lib/weekly-hours";
+import { getDayModesMap, getFixedSlotsMap } from "@/lib/availability-data";
+import { resolveWeeklyDisplay, formatRangesFriendly } from "@/lib/weekly-hours";
 import { EditableText } from "@/components/site-content/editable-text";
 
 export const metadata: Metadata = {
@@ -22,9 +23,11 @@ const DAY_LABELS: Record<number, string> = {
 };
 
 export default async function ContactPage() {
-  const [rules, business] = await Promise.all([
+  const [rules, business, modes, fixedSlots] = await Promise.all([
     prisma.availabilityRule.findMany({ orderBy: { dayOfWeek: "asc" } }),
     getBusinessDetails(),
+    getDayModesMap(),
+    getFixedSlotsMap(),
   ]);
 
   return (
@@ -70,15 +73,17 @@ export default async function ContactPage() {
               <p className="font-medium">Hours</p>
             </div>
             <div className="overflow-hidden rounded-xl border border-border">
-              {groupWeeklyRules(rules).map((day) => (
+              {resolveWeeklyDisplay(rules, modes, fixedSlots).map((day) => (
                 <div
                   key={day.dayOfWeek}
                   className="flex items-center justify-between border-b border-border px-4 py-2.5 text-sm last:border-b-0"
                 >
                   <span>{DAY_LABELS[day.dayOfWeek]}</span>
-                  <span className={day.isActive ? "" : "text-muted-foreground"}>
-                    {day.isActive
-                      ? day.windows.map((w) => `${w.startTime} – ${w.endTime}`).join(" & ")
+                  <span className={day.isOpen ? "" : "text-muted-foreground"}>
+                    {day.isOpen
+                      ? day.mode === "FIXED_SLOTS"
+                        ? formatRangesFriendly(day.ranges)
+                        : day.ranges.map((w) => `${w.startTime} – ${w.endTime}`).join(" & ")
                       : "Closed"}
                   </span>
                 </div>

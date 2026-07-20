@@ -6,9 +6,11 @@ import {
   getSlotsWithStatusForDate,
   totalDurationMinutes,
   getWeeklyHoursMap,
+  getDayModesMap,
+  getFixedSlotsMap,
   getExceptionForDate,
 } from "@/lib/availability-data";
-import type { DayWindow } from "@/lib/availability";
+import { resolveDayRanges, type AvailabilityMode, type DayWindow } from "@/lib/availability";
 
 /** A day is at most ~15h open; 24h is a safe hard cap on a requested block. */
 const MAX_DURATION_MINUTES = 24 * 60;
@@ -22,35 +24,17 @@ function windowMinutes(w: DayWindow): number {
   return Math.max(0, minutesSinceMidnight(w.endTime) - minutesSinceMidnight(w.startTime));
 }
 
-/** Same weekday-of-a-calendar-date logic as availability.ts's (private)
- * dayOfWeekFor — timezone-agnostic by design, since a calendar date's weekday
- * doesn't depend on where you're standing. Duplicated here only because that
- * helper isn't exported; kept in lockstep with the one in availability.ts. */
-function dayOfWeekFor(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-}
-
-/**
- * Which windows are open on `dateStr`, for DISPLAY purposes only (explaining
- * the day to the client) — mirrors availability.ts's (private) resolveDayHours
- * precedence (a one-off exception overrides the recurring weekly hours), using
- * the same exported data helpers the actual slot engine uses. This does not
- * decide what's bookable; getSlotsWithStatusForDate/getDaySlotsWithStatus
- * remains the sole source of truth for that.
- */
-function resolveDisplayWindows(
-  dateStr: string,
+/** The recurring bookable ranges for a weekday, mode-aware and ignoring one-off
+ * exceptions — used only to suggest "better weekdays". In FIXED_SLOTS mode
+ * these are the individual slots; in OPEN_HOURS mode, the open windows. */
+function weekdayRanges(
+  dow: number,
   weeklyHours: Record<number, DayWindow[] | null>,
-  exception: { type: "CLOSED" | "CUSTOM_HOURS"; customStartTime?: string | null; customEndTime?: string | null } | null,
+  modes: Record<number, AvailabilityMode>,
+  fixedSlots: Record<number, DayWindow[]>,
 ): DayWindow[] {
-  if (exception) {
-    if (exception.type === "CLOSED") return [];
-    if (exception.customStartTime && exception.customEndTime) {
-      return [{ startTime: exception.customStartTime, endTime: exception.customEndTime }];
-    }
-  }
-  return weeklyHours[dayOfWeekFor(dateStr)] ?? [];
+  if ((modes[dow] ?? "OPEN_HOURS") === "FIXED_SLOTS") return fixedSlots[dow] ?? [];
+  return weeklyHours[dow] ?? [];
 }
 
 /** The regex only checks shape (YYYY-MM-DD); it happily accepts calendar
@@ -126,9 +110,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Provide durationMinutes or serviceId" }, { status: 400 });
   }
 
-  const [{ open, booked }, weeklyHours, exception] = await Promise.all([
+  const [{ open, booked }, weeklyHours, modes, fixedSlots, exception] = await Promise.all([
     getSlotsWithStatusForDate(date, duration),
     getWeeklyHoursMap(),
+    getDayModesMap(),
+    getFixedSlotsMap(),
     getExceptionForDate(date),
   ]);
 
@@ -139,16 +125,17 @@ export async function GET(request: NextRequest) {
 
   // Display-only info about the day, so the client can explain WHY a search
   // came up empty (closed / too short a day / genuinely fully booked) rather
-  // than reporting exhaustion with no reason.
-  const windows = resolveDisplayWindows(date, weeklyHours, exception);
+  // than reporting exhaustion with no reason. Mode-aware: in FIXED_SLOTS mode
+  // these ranges are the individual slots. Uses the SAME resolver the slot
+  // engine uses, so display and bookability can't drift apart.
+  const windows = resolveDayRanges({ dateStr: date, weeklyHours, modes, fixedSlots, exception });
   const totalBookableMinutes = windows.reduce((sum, w) => sum + windowMinutes(w), 0);
   const longestWindowMinutes = windows.reduce((max, w) => Math.max(max, windowMinutes(w)), 0);
-  // Other weekdays whose usual (non-exception) hours have a single window long
+  // Other weekdays whose usual (non-exception) hours have a single range long
   // enough for this request — lets the client suggest a concrete day instead
   // of just "try again", without hard-coding any business-hours values.
-  const betterWeekdays = Object.entries(weeklyHours)
-    .filter(([, dayWindows]) => (dayWindows ?? []).some((w) => windowMinutes(w) >= duration))
-    .map(([dow]) => Number(dow))
+  const betterWeekdays = [0, 1, 2, 3, 4, 5, 6]
+    .filter((dow) => weekdayRanges(dow, weeklyHours, modes, fixedSlots).some((w) => windowMinutes(w) >= duration))
     .sort((a, b) => a - b);
 
   return NextResponse.json({

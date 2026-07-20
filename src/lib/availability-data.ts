@@ -7,9 +7,11 @@ import {
   getDaySlotsWithStatus,
   getOpenSlotsForDate,
   isSlotStillOpen,
+  type AvailabilityMode,
   type BusyInterval,
   type DateException,
   type DayHours,
+  type DayWindow,
   type OpenSlot,
 } from "@/lib/availability";
 
@@ -33,6 +35,27 @@ export async function getWeeklyHoursMap(): Promise<Record<number, DayHours>> {
     if (!rule.isActive) continue;
     (map[rule.dayOfWeek] ??= []).push({ startTime: rule.startTime, endTime: rule.endTime });
   }
+  return map;
+}
+
+/** Per-weekday scheduling mode. A weekday with no row defaults to OPEN_HOURS,
+ * so days that were never configured keep the original behaviour. */
+export async function getDayModesMap(): Promise<Record<number, AvailabilityMode>> {
+  const rows = await prisma.daySchedule.findMany();
+  const map: Record<number, AvailabilityMode> = {};
+  for (const row of rows) map[row.dayOfWeek] = row.mode;
+  return map;
+}
+
+/** Hand-defined fixed slots per weekday (active rows only), sorted by start.
+ * Only meaningful for weekdays whose mode is FIXED_SLOTS. */
+export async function getFixedSlotsMap(): Promise<Record<number, DayWindow[]>> {
+  const slots = await prisma.availabilitySlot.findMany({
+    where: { isActive: true },
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  });
+  const map: Record<number, DayWindow[]> = {};
+  for (const s of slots) (map[s.dayOfWeek] ??= []).push({ startTime: s.startTime, endTime: s.endTime });
   return map;
 }
 
@@ -83,8 +106,10 @@ export async function getAvailableSlotsForDate(
   durationMinutes: number,
   excludeAppointmentId?: string,
 ): Promise<OpenSlot[]> {
-  const [weeklyHours, exception, settings, busy] = await Promise.all([
+  const [weeklyHours, modes, fixedSlots, exception, settings, busy] = await Promise.all([
     getWeeklyHoursMap(),
+    getDayModesMap(),
+    getFixedSlotsMap(),
     getExceptionForDate(dateStr),
     getBusinessSettings(),
     getBusyIntervalsForDate(dateStr, excludeAppointmentId),
@@ -94,6 +119,8 @@ export async function getAvailableSlotsForDate(
     dateStr,
     durationMinutes,
     weeklyHours,
+    modes,
+    fixedSlots,
     exception,
     busy,
     bufferMinutes: settings.bufferMinutes,
@@ -106,8 +133,10 @@ export async function getSlotsWithStatusForDate(
   dateStr: string,
   durationMinutes: number,
 ): Promise<{ open: OpenSlot[]; booked: OpenSlot[] }> {
-  const [weeklyHours, exception, settings, busy] = await Promise.all([
+  const [weeklyHours, modes, fixedSlots, exception, settings, busy] = await Promise.all([
     getWeeklyHoursMap(),
+    getDayModesMap(),
+    getFixedSlotsMap(),
     getExceptionForDate(dateStr),
     getBusinessSettings(),
     getBusyIntervalsForDate(dateStr),
@@ -117,6 +146,8 @@ export async function getSlotsWithStatusForDate(
     dateStr,
     durationMinutes,
     weeklyHours,
+    modes,
+    fixedSlots,
     exception,
     busy,
     bufferMinutes: settings.bufferMinutes,
