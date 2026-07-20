@@ -7,6 +7,8 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { runAction } from "@/lib/run-action";
 import { addAvailabilityException, deleteAvailabilityException } from "@/lib/actions/availability-admin";
 
 export type ExceptionDTO = {
@@ -37,38 +39,31 @@ export function ExceptionsEditor({ initialExceptions }: { initialExceptions: Exc
       return;
     }
     startTransition(async () => {
-      const result = await addAvailabilityException({
-        date,
-        type,
-        customStartTime: type === "CUSTOM_HOURS" ? startTime : undefined,
-        customEndTime: type === "CUSTOM_HOURS" ? endTime : undefined,
-        reason: reason || undefined,
-      });
-      if (result.status === "success") {
-        toast.success("Saved");
-        setDate("");
-        setReason("");
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(
+        () =>
+          addAvailabilityException({
+            date,
+            type,
+            customStartTime: type === "CUSTOM_HOURS" ? startTime : undefined,
+            customEndTime: type === "CUSTOM_HOURS" ? endTime : undefined,
+            reason: reason || undefined,
+          }),
+        {
+          success: "Saved",
+          onSuccess: () => {
+            setDate("");
+            setReason("");
+            router.refresh();
+          },
+        },
+      );
     });
   }
 
-  function handleDelete(id: string, label: string) {
-    // Deleting a closure silently re-opens that day for bookings, so confirm
-    // first — consistent with the cancel-appointment and calendar-block flows.
-    if (!window.confirm(`Remove the closure on ${label}? That day will be open for bookings again.`)) {
-      return;
-    }
-    startTransition(async () => {
-      const result = await deleteAvailabilityException(id);
-      if (result.status === "success") {
-        toast.success("Removed");
-        router.refresh();
-      } else {
-        toast.error("Couldn't remove that");
-      }
+  async function handleDeleteConfirmed(id: string) {
+    await runAction(() => deleteAvailabilityException(id), {
+      success: "Removed",
+      onSuccess: () => router.refresh(),
     });
   }
 
@@ -94,9 +89,25 @@ export function ExceptionsEditor({ initialExceptions }: { initialExceptions: Exc
                     {exception.reason ? ` (${exception.reason})` : ""}
                   </span>
                 </div>
-                <Button variant="ghost" size="icon" aria-label="Remove" disabled={pending} onClick={() => handleDelete(exception.id, label)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <ConfirmDialog
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Remove"
+                      disabled={pending}
+                      className="gap-1.5 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" /> Remove
+                    </Button>
+                  }
+                  title={`Remove the closure on ${label}?`}
+                  description="That day will be open for bookings again."
+                  confirmLabel="Remove closure"
+                  cancelLabel="Keep closure"
+                  variant="destructive"
+                  onConfirm={() => handleDeleteConfirmed(exception.id)}
+                />
               </li>
             );
           })}

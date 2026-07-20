@@ -145,6 +145,75 @@ describe("getOpenSlotsForDate", () => {
     expect(rightAfterBooking).toBeUndefined();
   });
 
+  // Regression cover for a reported "bug": a tester booked a dog at 5pm on
+  // Thursday 23 July, then found no slots at 4pm and concluded the picker was
+  // broken. It wasn't. The salon's real hours are only 16:00-20:00 on
+  // Mon/Thu/Fri, so a long first booking genuinely consumes the evening. These
+  // tests pin down that the engine is right, so nobody "fixes" it later.
+  describe("short evening windows (real Mon/Thu/Fri hours)", () => {
+    const THURSDAY = "2026-07-23"; // the exact date reported; a Thursday, AEST
+    const EVENING_HOURS: Record<number, DayHours> = {
+      0: [{ startTime: "09:00", endTime: "17:00" }],
+      1: [{ startTime: "16:00", endTime: "20:00" }],
+      2: null,
+      3: null,
+      4: [{ startTime: "16:00", endTime: "20:00" }],
+      5: [{ startTime: "16:00", endTime: "20:00" }],
+      6: [{ startTime: "09:00", endTime: "17:00" }],
+    };
+
+    it("still offers 4pm for a short service when a 1-hour booking sits at 5pm", () => {
+      const slots = getOpenSlotsForDate({
+        dateStr: THURSDAY,
+        durationMinutes: 60,
+        weeklyHours: EVENING_HOURS,
+        busy: [
+          {
+            startAt: new Date("2026-07-23T07:00:00.000Z"), // 17:00 AEST
+            endAt: new Date("2026-07-23T08:00:00.000Z"), // 18:00 AEST
+          },
+        ],
+        bufferMinutes: 15,
+        now: FAR_PAST_NOW,
+      });
+
+      // 16:00-17:00 does not overlap the buffered [17:00, 18:15) range.
+      const fourPm = slots.find((s) => s.startAt.toISOString() === "2026-07-23T06:00:00.000Z");
+      expect(fourPm).toBeDefined();
+    });
+
+    it("correctly leaves nothing when a 3-hour full groom takes the whole evening", () => {
+      const slots = getOpenSlotsForDate({
+        dateStr: THURSDAY,
+        durationMinutes: 90,
+        weeklyHours: EVENING_HOURS,
+        busy: [
+          {
+            startAt: new Date("2026-07-23T07:00:00.000Z"), // 17:00 AEST
+            endAt: new Date("2026-07-23T10:00:00.000Z"), // 20:00 AEST — closing
+          },
+        ],
+        bufferMinutes: 15,
+        now: FAR_PAST_NOW,
+      });
+
+      // Every 90-minute start in a 16:00-20:00 window collides with a booking
+      // that runs 17:00 to close. Empty is the CORRECT answer here.
+      expect(slots).toEqual([]);
+    });
+
+    it("cannot fit a 3-hour groom for two dogs into a 4-hour evening", () => {
+      const slots = getOpenSlotsForDate({
+        dateStr: THURSDAY,
+        durationMinutes: 360, // two full grooms back to back
+        weeklyHours: EVENING_HOURS,
+        busy: [],
+        now: FAR_PAST_NOW,
+      });
+      expect(slots).toEqual([]);
+    });
+  });
+
   it("does not offer a slot that doesn't fully fit before closing time", () => {
     const slots = getOpenSlotsForDate({
       dateStr: TUESDAY,

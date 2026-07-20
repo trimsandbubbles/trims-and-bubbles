@@ -2,6 +2,8 @@ import { ShoppingBag, Store as StoreIcon, Truck } from "lucide-react";
 import { requireStaffOrOwner } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
+import { OrderStatusActions } from "@/components/admin/order-status-actions";
 
 const dateFmt = new Intl.DateTimeFormat("en-AU", {
   timeZone: "Australia/Sydney",
@@ -10,6 +12,26 @@ const dateFmt = new Intl.DateTimeFormat("en-AU", {
   hour: "numeric",
   minute: "2-digit",
 });
+
+/** Plain-English status badge — mirrors the wording used in
+ * OrderStatusActions so the owner sees consistent language throughout. */
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  PENDING_PAYMENT: "outline",
+  CONFIRMED: "default",
+  FULFILLED: "secondary",
+  CANCELLED: "destructive",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING_PAYMENT: "Awaiting payment",
+  CONFIRMED: "Confirmed",
+  FULFILLED: "Fulfilled",
+  CANCELLED: "Cancelled",
+};
+
+function OrderStatusBadge({ status }: { status: string }) {
+  return <Badge variant={STATUS_VARIANT[status] ?? "outline"}>{STATUS_LABEL[status] ?? status}</Badge>;
+}
 
 export default async function AdminOrdersPage() {
   await requireStaffOrOwner();
@@ -43,17 +65,20 @@ export default async function AdminOrdersPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-extrabold">{formatCents(order.totalCents)}</p>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold">
-                    {order.fulfillment === "SHIPPING" ? (
-                      <>
-                        <Truck className="h-3.5 w-3.5" /> Ship
-                      </>
-                    ) : (
-                      <>
-                        <StoreIcon className="h-3.5 w-3.5" /> Pickup
-                      </>
-                    )}
-                  </span>
+                  <div className="mt-1 flex items-center justify-end gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold">
+                      {order.fulfillment === "SHIPPING" ? (
+                        <>
+                          <Truck className="h-3.5 w-3.5" /> Ship
+                        </>
+                      ) : (
+                        <>
+                          <StoreIcon className="h-3.5 w-3.5" /> Pickup
+                        </>
+                      )}
+                    </span>
+                    <OrderStatusBadge status={order.status} />
+                  </div>
                 </div>
               </div>
 
@@ -75,6 +100,12 @@ export default async function AdminOrdersPage() {
                 <p className="mt-1 text-sm">
                   <span className="font-medium">Note:</span> <span className="text-muted-foreground">{order.notes}</span>
                 </p>
+              )}
+
+              {order.status !== "FULFILLED" && order.status !== "CANCELLED" && (
+                <div className="mt-3 border-t border-border pt-3">
+                  <OrderStatusActions orderId={order.id} status={order.status} fulfillment={order.fulfillment} />
+                </div>
               )}
             </div>
           ))}

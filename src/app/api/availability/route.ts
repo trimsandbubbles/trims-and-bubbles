@@ -2,10 +2,56 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getSlotsWithStatusForDate, totalDurationMinutes } from "@/lib/availability-data";
+import {
+  getSlotsWithStatusForDate,
+  totalDurationMinutes,
+  getWeeklyHoursMap,
+  getExceptionForDate,
+} from "@/lib/availability-data";
+import type { DayWindow } from "@/lib/availability";
 
 /** A day is at most ~15h open; 24h is a safe hard cap on a requested block. */
 const MAX_DURATION_MINUTES = 24 * 60;
+
+function minutesSinceMidnight(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function windowMinutes(w: DayWindow): number {
+  return Math.max(0, minutesSinceMidnight(w.endTime) - minutesSinceMidnight(w.startTime));
+}
+
+/** Same weekday-of-a-calendar-date logic as availability.ts's (private)
+ * dayOfWeekFor — timezone-agnostic by design, since a calendar date's weekday
+ * doesn't depend on where you're standing. Duplicated here only because that
+ * helper isn't exported; kept in lockstep with the one in availability.ts. */
+function dayOfWeekFor(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/**
+ * Which windows are open on `dateStr`, for DISPLAY purposes only (explaining
+ * the day to the client) — mirrors availability.ts's (private) resolveDayHours
+ * precedence (a one-off exception overrides the recurring weekly hours), using
+ * the same exported data helpers the actual slot engine uses. This does not
+ * decide what's bookable; getSlotsWithStatusForDate/getDaySlotsWithStatus
+ * remains the sole source of truth for that.
+ */
+function resolveDisplayWindows(
+  dateStr: string,
+  weeklyHours: Record<number, DayWindow[] | null>,
+  exception: { type: "CLOSED" | "CUSTOM_HOURS"; customStartTime?: string | null; customEndTime?: string | null } | null,
+): DayWindow[] {
+  if (exception) {
+    if (exception.type === "CLOSED") return [];
+    if (exception.customStartTime && exception.customEndTime) {
+      return [{ startTime: exception.customStartTime, endTime: exception.customEndTime }];
+    }
+  }
+  return weeklyHours[dayOfWeekFor(dateStr)] ?? [];
+}
 
 const querySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
@@ -63,12 +109,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Provide durationMinutes or serviceId" }, { status: 400 });
   }
 
-  const { open, booked } = await getSlotsWithStatusForDate(date, duration);
+  const [{ open, booked }, weeklyHours, exception] = await Promise.all([
+    getSlotsWithStatusForDate(date, duration),
+    getWeeklyHoursMap(),
+    getExceptionForDate(date),
+  ]);
 
   const toDTO = (s: { startAt: Date; endAt: Date }) => ({
     startAt: s.startAt.toISOString(),
     endAt: s.endAt.toISOString(),
   });
+
+  // Display-only info about the day, so the client can explain WHY a search
+  // came up empty (closed / too short a day / genuinely fully booked) rather
+  // than reporting exhaustion with no reason.
+  const windows = resolveDisplayWindows(date, weeklyHours, exception);
+  const totalBookableMinutes = windows.reduce((sum, w) => sum + windowMinutes(w), 0);
+  const longestWindowMinutes = windows.reduce((max, w) => Math.max(max, windowMinutes(w)), 0);
+  // Other weekdays whose usual (non-exception) hours have a single window long
+  // enough for this request — lets the client suggest a concrete day instead
+  // of just "try again", without hard-coding any business-hours values.
+  const betterWeekdays = Object.entries(weeklyHours)
+    .filter(([, dayWindows]) => (dayWindows ?? []).some((w) => windowMinutes(w) >= duration))
+    .map(([dow]) => Number(dow))
+    .sort((a, b) => a - b);
 
   return NextResponse.json({
     slots: open.map(toDTO),
@@ -76,5 +140,16 @@ export async function GET(request: NextRequest) {
     // clients can see why a time isn't offered. Bare start/end times only; no
     // client or pet details are ever exposed here.
     booked: booked.map(toDTO),
+    // The duration this response was computed for, echoed back so the client
+    // never has to trust it already has the right value in state.
+    durationMinutes: duration,
+    hours: {
+      closed: windows.length === 0,
+      // Wall-clock open windows for this exact date, e.g. [{ start: "16:00", end: "20:00" }].
+      windows: windows.map((w) => ({ start: w.startTime, end: w.endTime })),
+      totalBookableMinutes,
+      longestWindowMinutes,
+      betterWeekdays,
+    },
   });
 }

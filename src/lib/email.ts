@@ -16,6 +16,11 @@ import "server-only";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
+/** Hard ceiling on a single send. Without this, a slow Resend response can hang a
+ * server action long after its database write has already committed — the user
+ * sees a button stuck on "…" and no result. A missed email is always cheaper. */
+const SEND_TIMEOUT_MS = 8000;
+
 export type SendEmailInput = {
   to: string | string[];
   subject: string;
@@ -56,6 +61,7 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
         text: input.text,
         reply_to: input.replyTo,
       }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");

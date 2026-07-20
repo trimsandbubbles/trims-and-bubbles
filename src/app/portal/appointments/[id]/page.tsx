@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Clock, CreditCard, Dog, ImageIcon, StickyNote, Truck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, CreditCard, Dog, ImageIcon, StickyNote, Truck, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppointmentStatusBadge } from "@/components/status-badge";
 import { getCurrentSession } from "@/lib/session";
@@ -12,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/format";
 import { computeBalanceOwingCents } from "@/lib/payments-data";
 import { isStripeConfigured } from "@/lib/stripe";
+import { getBusinessDetails } from "@/lib/business-data";
 import { PayBalanceButton } from "@/components/portal/pay-balance-button";
 import { CancelBookingButton } from "@/components/portal/cancel-booking-button";
 import { BookingGroupPanel } from "@/components/appointments/booking-group-panel";
@@ -42,6 +44,8 @@ export default async function PortalAppointmentDetailPage({
   const { id } = await params;
   const { paid } = await searchParams;
   const session = await getCurrentSession();
+  // Kick this off alongside the appointment lookups below — it doesn't depend on them.
+  const businessPromise = getBusinessDetails();
   const client = await prisma.client.findUnique({ where: { userId: session!.user.id } });
   if (!client) notFound();
 
@@ -68,8 +72,10 @@ export default async function PortalAppointmentDetailPage({
   const paidCents = apt.payments.filter((p) => p.status === "PAID" && p.type !== "REFUND").reduce((sum, p) => sum + p.amountCents, 0);
   const balanceOwingCents = computeBalanceOwingCents(apt.totalPriceCents, apt.payments);
   const isCancelled = apt.status === "CANCELLED" || apt.status === "NO_SHOW";
-  const canCancel =
-    (apt.status === "CONFIRMED" || apt.status === "PENDING_PAYMENT") && apt.startAt.getTime() > Date.now();
+  const hasStarted = apt.startAt.getTime() <= Date.now();
+  const canCancel = (apt.status === "CONFIRMED" || apt.status === "PENDING_PAYMENT") && !hasStarted;
+  const business = await businessPromise;
+  const telHref = `tel:${business.contactPhone.replace(/[^\d+]/g, "")}`;
 
   const dateTimeFmt = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Sydney",
@@ -121,13 +127,39 @@ export default async function PortalAppointmentDetailPage({
         />
       )}
 
-      {canCancel && (
+      {!isCancelled && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-4">
-          <p className="text-sm text-muted-foreground">
-            Need to cancel? {otherBookingDogs.length > 0 ? "This cancels the whole booking. " : ""}
-            We&apos;ll let the salon know right away.
-          </p>
-          <CancelBookingButton appointmentId={apt.id} dogCount={otherBookingDogs.length + 1} />
+          {canCancel ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Need to cancel? {otherBookingDogs.length > 0 ? "This cancels the whole booking. " : ""}
+                We&apos;ll let the salon know right away.
+              </p>
+              <CancelBookingButton
+                appointmentId={apt.id}
+                dogCount={otherBookingDogs.length + 1}
+                petName={apt.pet.name}
+                serviceName={apt.primaryService.name}
+                startAt={apt.startAt}
+                size="touch"
+              />
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {hasStarted
+                  ? "This appointment has already started — please call us on "
+                  : "This appointment can't be cancelled online anymore — please call us on "}
+                <a href={telHref} className="font-medium text-foreground underline underline-offset-4">
+                  {business.contactPhone}
+                </a>{" "}
+                to change it.
+              </p>
+              <Button variant="destructive" size="touch" disabled>
+                <XCircle className="h-4 w-4" /> Cancel booking
+              </Button>
+            </>
+          )}
         </div>
       )}
 

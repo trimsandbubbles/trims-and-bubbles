@@ -135,10 +135,25 @@ export async function updateAppointmentStatus(appointmentId: string, status: str
 
   // Cancellation → tell the customer (best-effort; never blocks the update).
   if (parsed.data === "CANCELLED") {
+    // A multi-dog booking is stored as several back-to-back rows sharing a
+    // bookingGroupId. Cancelling one dog but silently leaving the others booked
+    // would strand the customer with half a booking, so take the whole group —
+    // this matches what the customer-side cancel already does.
+    if (updated.bookingGroupId) {
+      await prisma.appointment.updateMany({
+        where: {
+          bookingGroupId: updated.bookingGroupId,
+          id: { not: updated.id },
+          status: { in: ["PENDING_PAYMENT", "CONFIRMED", "IN_PROGRESS"] },
+        },
+        data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: cleanReason },
+      });
+    }
     await sendCancellationEmail(updated);
   }
 
   revalidateAppointment(appointmentId);
+  revalidatePath("/portal/appointments");
   return { status: "success" };
 }
 

@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { runAction } from "@/lib/run-action";
 import { deleteService, removeServicePhoto, setServicePhoto, updateServiceAndPrices } from "@/lib/actions/admin-services";
 import { SIZE_BAND_HINTS, SIZE_BAND_LABELS } from "@/lib/format";
 
@@ -34,7 +36,6 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
   const [active, setActive] = useState(service.active);
   const [prices, setPrices] = useState(service.prices);
   const [pending, startTransition] = useTransition();
-  const [removing, startRemoving] = useTransition();
   const [photoPending, startPhoto] = useTransition();
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,18 +50,9 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
     setPrices((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
 
-  function handleRemove() {
-    const confirmed = window.confirm(
-      `Remove "${service.name}"? If it has booking history it'll be hidden from the booking form instead of deleted.`,
-    );
-    if (!confirmed) return;
-    startRemoving(async () => {
-      const result = await deleteService(service.id);
-      if (result.status === "success") {
-        toast.success(result.message ?? `${service.name} removed`);
-      } else {
-        toast.error(result.message);
-      }
+  async function handleRemoveConfirmed() {
+    await runAction(() => deleteService(service.id), {
+      onSuccess: (result) => toast.success(result.message ?? `${service.name} removed`),
     });
   }
 
@@ -72,26 +64,21 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
     const formData = new FormData();
     formData.append("photo", file);
     startPhoto(async () => {
-      const result = await setServicePhoto(service.id, formData);
-      if (result.status === "success") {
-        toast.success(result.message ?? "Photo updated");
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => setServicePhoto(service.id, formData), {
+        onSuccess: (result) => {
+          toast.success(result.message ?? "Photo updated");
+          router.refresh();
+        },
+      });
     });
   }
 
-  function handleRemovePhoto() {
-    if (!window.confirm("Remove this service's photo? The default photo will be used instead.")) return;
-    startPhoto(async () => {
-      const result = await removeServicePhoto(service.id);
-      if (result.status === "success") {
+  async function handleRemovePhotoConfirmed() {
+    await runAction(() => removeServicePhoto(service.id), {
+      onSuccess: (result) => {
         toast.success(result.message ?? "Photo removed");
         router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      },
     });
   }
 
@@ -106,19 +93,18 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
       return;
     }
     startTransition(async () => {
-      const result = await updateServiceAndPrices({
-        serviceId: service.id,
-        name: name.trim(),
-        description: description.trim() || undefined,
-        durationMinutes: duration,
-        active,
-        prices: prices.map((p) => ({ id: p.id, priceCents: p.priceCents, isOnInspection: p.isOnInspection })),
-      });
-      if (result.status === "success") {
-        toast.success(`${name} saved`);
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(
+        () =>
+          updateServiceAndPrices({
+            serviceId: service.id,
+            name: name.trim(),
+            description: description.trim() || undefined,
+            durationMinutes: duration,
+            active,
+            prices: prices.map((p) => ({ id: p.id, priceCents: p.priceCents, isOnInspection: p.isOnInspection })),
+          }),
+        { success: `${name} saved` },
+      );
     });
   }
 
@@ -194,16 +180,19 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
               {photoPending ? "Uploading..." : service.imageUrl ? "Change photo" : "Add photo"}
             </Button>
             {service.imageUrl && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                className="h-11"
-                onClick={handleRemovePhoto}
-                disabled={photoPending}
-              >
-                <Trash2 className="h-4 w-4" /> Remove photo
-              </Button>
+              <ConfirmDialog
+                trigger={
+                  <Button type="button" variant="ghost" size="lg" className="h-11" disabled={photoPending}>
+                    <Trash2 className="h-4 w-4" /> Remove photo
+                  </Button>
+                }
+                title={`Remove ${service.name}'s photo?`}
+                description="The default photo will be used on your public Services page instead."
+                confirmLabel="Remove photo"
+                cancelLabel="Keep photo"
+                variant="destructive"
+                onConfirm={handleRemovePhotoConfirmed}
+              />
             )}
           </div>
         </div>
@@ -252,9 +241,19 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
         <Button onClick={handleSave} disabled={!dirty || pending} size="lg" className="h-11 px-6">
           {pending ? "Saving..." : "Save"}
         </Button>
-        <Button onClick={handleRemove} disabled={removing} variant="destructive" size="lg" className="h-11 px-6">
-          {removing ? "Removing..." : "Remove"}
-        </Button>
+        <ConfirmDialog
+          trigger={
+            <Button variant="destructive" size="lg" className="h-11 px-6">
+              Remove
+            </Button>
+          }
+          title={`Remove "${service.name}"?`}
+          description="If it has booking history it'll be hidden from the booking form instead of deleted."
+          confirmLabel="Remove service"
+          cancelLabel="Keep service"
+          variant="destructive"
+          onConfirm={handleRemoveConfirmed}
+        />
       </div>
     </div>
   );

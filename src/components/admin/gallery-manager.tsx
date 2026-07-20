@@ -3,13 +3,14 @@
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { ImagePlus, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { runAction } from "@/lib/run-action";
 import {
   addGalleryImage,
   deleteGalleryImage,
@@ -147,15 +148,14 @@ function AddPhotoForm() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
-      const result = await addGalleryImage(formData);
-      if (result.status === "success") {
-        toast.success("Photo added to the gallery");
-        clearPhoto();
-        formRef.current?.reset();
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => addGalleryImage(formData), {
+        success: "Photo added to the gallery",
+        onSuccess: () => {
+          clearPhoto();
+          formRef.current?.reset();
+          router.refresh();
+        },
+      });
     });
   }
 
@@ -173,6 +173,9 @@ function AddPhotoForm() {
           {preview ? (
             <div className="relative h-40 w-40 overflow-hidden rounded-xl border border-border">
               <Image src={preview} alt="Selected photo preview" fill className="object-cover" sizes="160px" />
+              {/* Small thumbnail overlay — no room for a visible label. This
+                  only clears an unsaved local selection (nothing is deleted
+                  yet), so no confirmation is needed either. */}
               <button
                 type="button"
                 onClick={clearPhoto}
@@ -246,50 +249,38 @@ function GalleryImageCard({ image }: { image: GalleryImageRow }) {
   const [active, setActive] = useState(image.active);
   const [savePending, startSave] = useTransition();
   const [togglePending, startToggle] = useTransition();
-  const [deletePending, startDelete] = useTransition();
 
   const dirty = caption !== (image.caption ?? "") || groupLabel !== (image.groupLabel ?? "");
+  const photoLabel = image.caption?.trim() || image.groupLabel?.trim() || "";
 
   function handleSave() {
     startSave(async () => {
-      const result = await updateGalleryImage(image.id, { caption, groupLabel });
-      if (result.status === "success") {
-        toast.success("Photo updated");
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => updateGalleryImage(image.id, { caption, groupLabel }), {
+        success: "Photo updated",
+        onSuccess: () => router.refresh(),
+      });
     });
   }
 
   function handleToggleActive(checked: boolean) {
     setActive(checked);
     startToggle(async () => {
-      const result = await updateGalleryImage(image.id, { active: checked });
-      if (result.status === "success") {
-        toast.success(checked ? "Photo shown on public gallery" : "Photo hidden from public gallery");
-        router.refresh();
-      } else {
-        setActive(!checked);
-        toast.error(result.message);
-      }
+      const result = await runAction(() => updateGalleryImage(image.id, { active: checked }), {
+        success: checked ? "Photo shown on public gallery" : "Photo hidden from public gallery",
+        onSuccess: () => router.refresh(),
+      });
+      if (!result || result.status !== "success") setActive(!checked);
     });
   }
 
-  function handleDelete() {
-    if (!window.confirm("Delete this photo? This can't be undone.")) return;
-    startDelete(async () => {
-      const result = await deleteGalleryImage(image.id);
-      if (result.status === "success") {
-        toast.success("Photo deleted");
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+  async function handleDelete() {
+    await runAction(() => deleteGalleryImage(image.id), {
+      success: "Photo deleted",
+      onSuccess: () => router.refresh(),
     });
   }
 
-  const pending = savePending || togglePending || deletePending;
+  const pending = savePending || togglePending;
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -338,17 +329,19 @@ function GalleryImageCard({ image }: { image: GalleryImageRow }) {
             <Button type="button" variant="outline" size="lg" className="h-11" onClick={handleSave} disabled={!dirty || pending}>
               {savePending ? "Saving..." : "Save"}
             </Button>
-            <Button
-              type="button"
+            <ConfirmDialog
+              trigger={
+                <Button type="button" variant="destructive" size="touch" className="px-4" disabled={pending}>
+                  <Trash2 className="h-4 w-4" /> Delete photo
+                </Button>
+              }
+              title={photoLabel ? `Delete the photo "${photoLabel}"?` : "Delete this photo?"}
+              description="This removes it from your public gallery for good. This can't be undone."
+              confirmLabel="Delete photo"
+              cancelLabel="Keep photo"
               variant="destructive"
-              size="icon"
-              className="h-11 w-11"
-              aria-label="Delete photo"
-              onClick={handleDelete}
-              disabled={pending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+              onConfirm={handleDelete}
+            />
           </div>
         </div>
       </div>
@@ -366,14 +359,11 @@ function AppointmentPhotoCard({ photo }: { photo: AppointmentPhotoRow }) {
   function handleToggle(checked: boolean) {
     setFeatured(checked);
     startTransition(async () => {
-      const result = await setAppointmentPhotoFeatured(photo.id, checked);
-      if (result.status === "success") {
-        toast.success(checked ? "Featured on public gallery" : "Removed from public gallery");
-        router.refresh();
-      } else {
-        setFeatured(!checked);
-        toast.error(result.message);
-      }
+      const result = await runAction(() => setAppointmentPhotoFeatured(photo.id, checked), {
+        success: checked ? "Featured on public gallery" : "Removed from public gallery",
+        onSuccess: () => router.refresh(),
+      });
+      if (!result || result.status !== "success") setFeatured(!checked);
     });
   }
 

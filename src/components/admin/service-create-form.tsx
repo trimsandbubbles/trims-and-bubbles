@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { runAction } from "@/lib/run-action";
 import { createService } from "@/lib/actions/admin-services";
 import { SIZE_BAND_HINTS, SIZE_BAND_LABELS } from "@/lib/format";
 
@@ -51,10 +53,7 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
     setFee("");
   }
 
-  function handleCancel() {
-    if (dirty && !window.confirm("Discard this new " + (isAddOn ? "add-on" : "service") + "? What you've typed will be lost.")) {
-      return;
-    }
+  function closeWithoutSaving() {
     reset();
     setOpen(false);
   }
@@ -90,15 +89,14 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
         };
 
     startTransition(async () => {
-      const result = await createService(input);
-      if (result.status === "success") {
-        toast.success(result.message ?? `${name} added`);
-        reset();
-        setOpen(false);
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => createService(input), {
+        onSuccess: (result) => {
+          toast.success(result.message ?? `${name} added`);
+          reset();
+          setOpen(false);
+          router.refresh();
+        },
+      });
     });
   }
 
@@ -210,15 +208,25 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
         <Button onClick={handleSubmit} disabled={pending} size="lg" className="h-11 px-6">
           {pending ? "Adding..." : isAddOn ? "Add add-on" : "Add service"}
         </Button>
-        <Button
-          variant="ghost"
-          size="lg"
-          className="h-11 px-6"
-          disabled={pending}
-          onClick={handleCancel}
-        >
-          Cancel
-        </Button>
+        {dirty ? (
+          <ConfirmDialog
+            trigger={
+              <Button variant="ghost" size="lg" className="h-11 px-6" disabled={pending}>
+                Cancel
+              </Button>
+            }
+            title={`Discard this new ${isAddOn ? "add-on" : "service"}?`}
+            description="What you've typed will be lost."
+            confirmLabel="Discard"
+            cancelLabel="Keep editing"
+            variant="destructive"
+            onConfirm={closeWithoutSaving}
+          />
+        ) : (
+          <Button variant="ghost" size="lg" className="h-11 px-6" disabled={pending} onClick={closeWithoutSaving}>
+            Cancel
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -3,11 +3,11 @@
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Camera, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { runAction } from "@/lib/run-action";
 import { completeAppointmentWithPhoto } from "@/lib/actions/admin-appointments";
 
 /** The core admin action, two taps: choose/take a photo (optional), jot a
@@ -47,15 +47,14 @@ export function CompleteAppointmentForm({ appointmentId, alreadyComplete }: { ap
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
-      const result = await completeAppointmentWithPhoto(formData);
-      if (result.status === "success") {
-        toast.success(alreadyComplete ? "Saved" : "Marked complete");
-        clearPhoto();
-        formRef.current?.reset();
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => completeAppointmentWithPhoto(formData), {
+        success: alreadyComplete ? "Saved" : "Marked complete",
+        onSuccess: () => {
+          clearPhoto();
+          formRef.current?.reset();
+          router.refresh();
+        },
+      });
     });
   }
 

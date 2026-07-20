@@ -14,10 +14,11 @@ const NAV_LINKS = [
   { href: "/portal/pets", label: "My Dogs" },
   { href: "/portal/appointments", label: "Appointments" },
   { href: "/portal/messages", label: "Messages" },
-  { href: "/portal/reviews", label: "My Review" },
+  { href: "/portal/reviews", label: "Review" },
   { href: "/portal/payments", label: "Payments" },
   { href: "/portal/profile", label: "Profile" },
   { href: "/store", label: "Shop" },
+  { href: "/portal/orders", label: "Orders" },
 ];
 
 export function PortalHeader({ userName }: { userName: string }) {

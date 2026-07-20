@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { Dog } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowRight, Dog } from "lucide-react";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AddPetDialog } from "@/components/portal/add-pet-dialog";
+import { EditPetDialog } from "@/components/pets/edit-pet-dialog";
+import { RemovePetButton } from "@/components/pets/remove-pet-button";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { SIZE_BAND_LABELS } from "@/lib/format";
+import type { SizeBand } from "@/components/booking/types";
 
 export const metadata: Metadata = { title: "My Dogs" };
 
@@ -33,16 +36,20 @@ export default async function PortalPetsPage() {
 
       {pets.length === 0 ? (
         <Card className="mt-8">
-          <CardContent className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
             <Dog className="h-8 w-8" />
             <p>You haven&apos;t added a dog yet.</p>
+            <AddPetDialog />
           </CardContent>
         </Card>
       ) : (
         <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {pets.map((pet) => (
-            <Link key={pet.id} href={`/portal/pets/${pet.id}`} className="block">
-              <Card className="h-full transition-colors hover:border-primary/50">
+            // The card itself is not a link — the profile area and the
+            // Edit/Remove actions are siblings so real buttons can live in
+            // the footer without nesting interactive elements.
+            <Card key={pet.id} className="h-full transition-colors hover:border-primary/50">
+              <Link href={`/portal/pets/${pet.id}`} className="group block">
                 <CardContent className="flex items-center gap-4 py-5">
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
                     {pet.photoUrl ? (
@@ -54,15 +61,32 @@ export default async function PortalPetsPage() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{pet.name}</p>
+                    <p className="truncate font-medium group-hover:text-accent-solid">{pet.name}</p>
                     <p className="truncate text-sm text-muted-foreground">{pet.breed ?? "Mixed breed"}</p>
                     <Badge variant="outline" className="mt-1.5">
                       {SIZE_BAND_LABELS[pet.sizeBand]}
                     </Badge>
+                    <span className="mt-2 flex items-center gap-1 text-xs font-bold text-accent-solid">
+                      View profile <ArrowRight className="h-3 w-3" />
+                    </span>
                   </div>
                 </CardContent>
-              </Card>
-            </Link>
+              </Link>
+              <CardFooter className="flex items-center justify-between gap-2">
+                <EditPetDialog
+                  pet={{
+                    id: pet.id,
+                    name: pet.name,
+                    breed: pet.breed,
+                    sizeBand: pet.sizeBand as SizeBand,
+                    weightKg: pet.weightKg,
+                    coatType: pet.coatType,
+                    temperamentNotes: pet.temperamentNotes,
+                  }}
+                />
+                <RemovePetButton petId={pet.id} petName={pet.name} redirectTo="/portal/pets" size="touch" />
+              </CardFooter>
+            </Card>
           ))}
         </div>
       )}

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 import { Check, Eye, EyeOff, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StarRating } from "@/components/reviews/star-rating";
+import { runAction } from "@/lib/run-action";
 import { approveReview, setReviewHidden, deleteReview, replyToReview } from "@/lib/actions/reviews";
 
 export type AdminReview = {
@@ -28,10 +29,12 @@ export function ReviewModerationCard({ review }: { review: AdminReview }) {
 
   function run(fn: () => Promise<{ status: "success" } | { status: "error"; message: string }>, successMsg: string) {
     startTransition(async () => {
-      const result = await fn();
-      if (result.status === "success") toast.success(successMsg);
-      else toast.error(result.message);
+      await runAction(fn, { success: successMsg });
     });
+  }
+
+  async function handleDeleteConfirmed() {
+    await runAction(() => deleteReview({ reviewId: review.id }), { success: "Review deleted" });
   }
 
   return (
@@ -100,18 +103,19 @@ export function ReviewModerationCard({ review }: { review: AdminReview }) {
               <Eye className="h-4 w-4" /> Show again
             </Button>
           )}
-          <Button
-            size="sm"
+          <ConfirmDialog
+            trigger={
+              <Button size="sm" variant="destructive" disabled={pending}>
+                <Trash2 className="h-4 w-4" /> Delete
+              </Button>
+            }
+            title={`Delete ${review.clientName}'s review?`}
+            description="This removes it everywhere, including any reply you've posted. This can't be undone."
+            confirmLabel="Delete review"
+            cancelLabel="Keep review"
             variant="destructive"
-            disabled={pending}
-            onClick={() => {
-              if (confirm("Delete this review permanently? This can't be undone.")) {
-                run(() => deleteReview({ reviewId: review.id }), "Review deleted");
-              }
-            }}
-          >
-            <Trash2 className="h-4 w-4" /> Delete
-          </Button>
+            onConfirm={handleDeleteConfirmed}
+          />
         </div>
 
         <div className="border-t border-border pt-3">

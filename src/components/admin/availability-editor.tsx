@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { runAction } from "@/lib/run-action";
 import { updateWeeklyHours } from "@/lib/actions/availability-admin";
 
 type TimeWindow = { startTime: string; endTime: string };
@@ -78,14 +78,10 @@ export function AvailabilityEditor({
 
   function handleSave() {
     startTransition(async () => {
-      const result = await updateWeeklyHours(
-        rows.map(({ dayOfWeek, isActive, windows }) => ({ dayOfWeek, isActive, windows })),
+      await runAction(
+        () => updateWeeklyHours(rows.map(({ dayOfWeek, isActive, windows }) => ({ dayOfWeek, isActive, windows }))),
+        { success: "Opening hours updated" },
       );
-      if (result.status === "success") {
-        toast.success("Opening hours updated");
-      } else {
-        toast.error(result.message);
-      }
     });
   }
 

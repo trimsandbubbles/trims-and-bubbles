@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { runAction } from "@/lib/run-action";
 import { createProduct, updateProduct, deleteProduct } from "@/lib/actions/admin-products";
 
 export type ProductRow = {
@@ -51,45 +53,43 @@ export function ProductManager({ products }: { products: ProductRow[] }) {
   const [adding, setAdding] = useState(false);
   const [createDirty, setCreateDirty] = useState(false);
 
-  function handleToggleAdd() {
-    if (adding && createDirty && !window.confirm("Discard this new product? What you've typed will be lost.")) {
-      return;
-    }
+  function closeAddForm() {
     setCreateDirty(false);
-    setAdding((v) => !v);
+    setAdding(false);
   }
 
   return (
     <div className="mt-6 space-y-5">
       <div className="flex justify-end">
-        <Button
-          type="button"
-          variant={adding ? "outline" : "default"}
-          size="lg"
-          className="h-11 px-6"
-          onClick={handleToggleAdd}
-        >
-          {adding ? (
-            <>
-              <X className="h-4 w-4" /> Cancel
-            </>
+        {adding ? (
+          createDirty ? (
+            <ConfirmDialog
+              trigger={
+                <Button type="button" variant="outline" size="lg" className="h-11 px-6">
+                  <X className="h-4 w-4" /> Cancel
+                </Button>
+              }
+              title="Discard this new product?"
+              description="What you've typed will be lost."
+              confirmLabel="Discard"
+              cancelLabel="Keep editing"
+              variant="destructive"
+              onConfirm={closeAddForm}
+            />
           ) : (
-            <>
-              <Plus className="h-4 w-4" /> Add product
-            </>
-          )}
-        </Button>
+            <Button type="button" variant="outline" size="lg" className="h-11 px-6" onClick={closeAddForm}>
+              <X className="h-4 w-4" /> Cancel
+            </Button>
+          )
+        ) : (
+          <Button type="button" variant="default" size="lg" className="h-11 px-6" onClick={() => setAdding(true)}>
+            <Plus className="h-4 w-4" /> Add product
+          </Button>
+        )}
       </div>
 
       {adding && (
-        <ProductForm
-          mode="create"
-          onDone={() => {
-            setCreateDirty(false);
-            setAdding(false);
-          }}
-          onDirtyChange={setCreateDirty}
-        />
+        <ProductForm mode="create" onDone={closeAddForm} onDirtyChange={setCreateDirty} />
       )}
 
       {products.length === 0 && !adding ? (
@@ -223,32 +223,33 @@ function ProductForm({
     if (file) fd.set("photo", file);
 
     startTransition(async () => {
-      const result = mode === "create" ? await createProduct(fd) : await updateProduct(fd);
-      if (result.status === "success") {
-        toast.success(mode === "create" ? `${name.trim()} added` : `${name.trim()} saved`);
-        clearChosenPhoto();
-        if (mode === "create") {
-          resetForm();
-          onDone?.();
-        }
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => (mode === "create" ? createProduct(fd) : updateProduct(fd)), {
+        onSuccess: () => {
+          toast.success(mode === "create" ? `${name.trim()} added` : `${name.trim()} saved`);
+          clearChosenPhoto();
+          if (mode === "create") {
+            resetForm();
+            onDone?.();
+          }
+          router.refresh();
+        },
+      });
     });
   }
 
-  function handleDelete() {
+  async function handleDeleteConfirmed() {
     if (!product) return;
-    if (!window.confirm(`Delete "${product.name}"? This can't be undone.`)) return;
-    startDelete(async () => {
-      const result = await deleteProduct(product.id);
-      if (result.status === "success") {
-        toast.success(`${product.name} deleted`);
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+    // Keep this tied to the `deleting` transition (rather than calling
+    // runAction bare) so `busy` below still disables Save while a delete is
+    // in flight, matching the rest of this form's pending-state pattern.
+    await new Promise<void>((resolve) => {
+      startDelete(async () => {
+        await runAction(() => deleteProduct(product.id), {
+          success: `${product.name} deleted`,
+          onSuccess: () => router.refresh(),
+        });
+        resolve();
+      });
     });
   }
 
@@ -435,17 +436,20 @@ function ProductForm({
         <Button onClick={handleSave} disabled={busy} size="lg" className="h-11 px-6">
           {pending ? "Saving..." : mode === "create" ? "Add product" : "Save"}
         </Button>
-        {mode === "edit" && (
-          <Button
-            type="button"
+        {mode === "edit" && product && (
+          <ConfirmDialog
+            trigger={
+              <Button type="button" variant="destructive" size="lg" className="h-11 px-6" disabled={busy}>
+                <Trash2 className="h-4 w-4" /> {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            }
+            title={`Delete "${product.name}"?`}
+            description="This removes it from the shop for good. This can't be undone."
+            confirmLabel="Delete product"
+            cancelLabel="Keep product"
             variant="destructive"
-            size="lg"
-            className="h-11 px-6"
-            onClick={handleDelete}
-            disabled={busy}
-          >
-            <Trash2 className="h-4 w-4" /> {deleting ? "Deleting..." : "Delete"}
-          </Button>
+            onConfirm={handleDeleteConfirmed}
+          />
         )}
       </div>
     </div>

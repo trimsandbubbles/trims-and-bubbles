@@ -106,11 +106,21 @@ export default async function PortalDashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-semibold">{petCount}</p>
-            <Button variant="ghost" render={<Link href="/portal/pets" />} className="mt-2 px-0">
+            <Button variant="outline" render={<Link href="/portal/pets" />} className="mt-2">
               <Dog className="h-4 w-4" /> Manage dogs
             </Button>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Button render={<Link href="/book" />}>Book another appointment</Button>
+        <Button variant="outline" render={<Link href="/portal/appointments" />}>
+          View appointment history
+        </Button>
+        <Button variant="outline" render={<Link href="/portal/reviews" />}>
+          <Star className="h-4 w-4" /> Leave a review
+        </Button>
       </div>
 
       {latestPhoto && (
@@ -138,16 +148,6 @@ export default async function PortalDashboardPage() {
           </Link>
         </div>
       )}
-
-      <div className="mt-10 flex flex-wrap gap-3">
-        <Button render={<Link href="/book" />}>Book another appointment</Button>
-        <Button variant="outline" render={<Link href="/portal/appointments" />}>
-          View appointment history
-        </Button>
-        <Button variant="outline" render={<Link href="/portal/reviews" />}>
-          <Star className="h-4 w-4" /> Leave a review
-        </Button>
-      </div>
     </div>
   );
 }

@@ -1,13 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { EventClickArg, DateSelectArg } from "@fullcalendar/core";
-import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { runAction } from "@/lib/run-action";
 import { createBlockedTimeSlot, deleteBlockedTimeSlot } from "@/lib/actions/admin-calendar";
 
 export type CalendarEventDTO = {
@@ -27,9 +28,17 @@ const STATUS_COLOR: Record<string, string> = {
   COMPLETED: "var(--color-muted-foreground)",
 };
 
+// Calendar clicks/drags aren't a button press, so these confirmations are
+// driven in ConfirmDialog's controlled mode: `open` follows the pending state,
+// and `onOpenChange(false)` clears it. Clearing on dismiss is the important
+// part — otherwise backing out would leave the pending state set and the same
+// block could never be clicked again.
+
 export function AdminCalendar({ events }: { events: CalendarEventDTO[] }) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
+  const [pendingRemoval, setPendingRemoval] = useState<{ id: string; title: string } | null>(null);
+  const [pendingBlock, setPendingBlock] = useState<{ startIso: string; endIso: string; label: string } | null>(null);
+  const [blockReason, setBlockReason] = useState("");
 
   function handleEventClick(info: EventClickArg) {
     const kind = info.event.extendedProps.kind as "appointment" | "blocked";
@@ -37,32 +46,31 @@ export function AdminCalendar({ events }: { events: CalendarEventDTO[] }) {
       router.push(`/admin/appointments/${info.event.id}`);
       return;
     }
-    if (window.confirm(`Remove this block?\n\n${info.event.title}`)) {
-      startTransition(async () => {
-        const result = await deleteBlockedTimeSlot(info.event.id);
-        if (result.status === "success") {
-          toast.success("Block removed");
-          router.refresh();
-        } else {
-          toast.error("Couldn't remove that block");
-        }
-      });
-    }
+    setPendingRemoval({ id: info.event.id, title: info.event.title });
   }
 
   function handleSelect(info: DateSelectArg) {
     const label = `${info.start.toLocaleString("en-AU", { timeZone: "Australia/Sydney", weekday: "short", hour: "numeric", minute: "2-digit" })} – ${info.end.toLocaleString("en-AU", { timeZone: "Australia/Sydney", hour: "numeric", minute: "2-digit" })}`;
-    if (!window.confirm(`Block this time off?\n\n${label}`)) return;
-    const reason = window.prompt("Reason (optional):", "") ?? "";
-    startTransition(async () => {
-      const result = await createBlockedTimeSlot(info.start.toISOString(), info.end.toISOString(), reason);
-      if (result.status === "success") {
-        toast.success("Time blocked off");
-        router.refresh();
-      } else {
-        toast.error(result.message ?? "Couldn't block that time");
-      }
+    setBlockReason("");
+    setPendingBlock({ startIso: info.start.toISOString(), endIso: info.end.toISOString(), label });
+  }
+
+  async function confirmRemoval() {
+    if (!pendingRemoval) return;
+    await runAction(() => deleteBlockedTimeSlot(pendingRemoval.id), {
+      success: "Block removed",
+      onSuccess: () => router.refresh(),
     });
+    setPendingRemoval(null);
+  }
+
+  async function confirmBlock() {
+    if (!pendingBlock) return;
+    await runAction(() => createBlockedTimeSlot(pendingBlock.startIso, pendingBlock.endIso, blockReason), {
+      success: "Time blocked off",
+      onSuccess: () => router.refresh(),
+    });
+    setPendingBlock(null);
   }
 
   return (
@@ -94,6 +102,52 @@ export function AdminCalendar({ events }: { events: CalendarEventDTO[] }) {
       <p className="mt-3 text-xs text-muted-foreground">
         Click any appointment to open it. Drag across an empty time to block it off (lunch, a day off, a vet run).
       </p>
+
+      {pendingRemoval && (
+        <ConfirmDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setPendingRemoval(null);
+          }}
+          title="Remove this time block?"
+          description={`"${pendingRemoval.title}" will open back up for bookings.`}
+          confirmLabel="Remove block"
+          cancelLabel="Keep block"
+          variant="destructive"
+          onConfirm={confirmRemoval}
+        />
+      )}
+
+      {pendingBlock && (
+        <ConfirmDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setPendingBlock(null);
+          }}
+          title="Block this time off?"
+          description={
+            <span className="flex flex-col gap-3">
+              <span className="block text-foreground">
+                {pendingBlock.label} won&apos;t be bookable by clients.
+              </span>
+              <label className="flex flex-col gap-1 text-xs font-medium text-foreground">
+                Reason (optional — shown on the calendar)
+                <input
+                  type="text"
+                  value={blockReason}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                  placeholder="e.g. Lunch, vet run, day off"
+                  maxLength={120}
+                  className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+              </label>
+            </span>
+          }
+          confirmLabel="Block this time"
+          cancelLabel="Never mind"
+          onConfirm={confirmBlock}
+        />
+      )}
     </div>
   );
 }

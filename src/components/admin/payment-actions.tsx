@@ -2,8 +2,9 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { runAction } from "@/lib/run-action";
 import { markPaymentPaidManually, refundPayment } from "@/lib/actions/admin-payments";
 import { formatCents } from "@/lib/format";
 
@@ -29,26 +30,17 @@ export function PaymentRowActions({
 
   function handleMarkPaid() {
     startTransition(async () => {
-      const result = await markPaymentPaidManually(paymentId);
-      if (result.status === "success") {
-        toast.success("Marked as paid");
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => markPaymentPaidManually(paymentId), {
+        success: "Marked as paid",
+        onSuccess: () => router.refresh(),
+      });
     });
   }
 
-  function handleRefund() {
-    if (!window.confirm(`Refund ${formatCents(amountCents)}?`)) return;
-    startTransition(async () => {
-      const result = await refundPayment({ paymentId });
-      if (result.status === "success") {
-        toast.success("Refund recorded");
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+  async function handleRefundConfirmed() {
+    await runAction(() => refundPayment({ paymentId }), {
+      success: "Refund recorded",
+      onSuccess: () => router.refresh(),
     });
   }
 
@@ -64,9 +56,19 @@ export function PaymentRowActions({
   }
   if (status === "PAID") {
     return (
-      <Button size="sm" variant="ghost" disabled={pending} onClick={handleRefund} className="text-destructive hover:text-destructive">
-        Refund
-      </Button>
+      <ConfirmDialog
+        trigger={
+          <Button size="sm" variant="destructive">
+            Refund {formatCents(amountCents)}
+          </Button>
+        }
+        title={`Refund ${formatCents(amountCents)}?`}
+        description="This sends the money back to the client and can't be undone."
+        confirmLabel="Refund payment"
+        cancelLabel="Don't refund"
+        variant="destructive"
+        onConfirm={handleRefundConfirmed}
+      />
     );
   }
   return null;

@@ -6,9 +6,34 @@ import { CheckCircle2, Store as StoreIcon, Truck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { CancelOrderButton } from "@/components/portal/cancel-order-button";
 import { formatCents } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Order confirmed" };
+
+/** Statuses a customer can still cancel from here. Mirrors CANCELLABLE in
+ * src/lib/actions/client-orders.ts (not imported — that constant isn't
+ * exported, and this copy is UX only; the server action re-checks). */
+const CANCELLABLE = new Set(["PENDING_PAYMENT", "CONFIRMED"]);
+
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  PENDING_PAYMENT: "outline",
+  CONFIRMED: "default",
+  FULFILLED: "secondary",
+  CANCELLED: "destructive",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING_PAYMENT: "Awaiting payment",
+  CONFIRMED: "Confirmed",
+  FULFILLED: "Fulfilled",
+  CANCELLED: "Cancelled",
+};
+
+function OrderStatusBadge({ status }: { status: string }) {
+  return <Badge variant={STATUS_VARIANT[status] ?? "outline"}>{STATUS_LABEL[status] ?? status}</Badge>;
+}
 
 export default async function OrderConfirmationPage({
   params,
@@ -29,17 +54,26 @@ export default async function OrderConfirmationPage({
   // Anything else — including a guessed/enumerated id with no token — 404s,
   // since this route lives under the public (marketing) group and would
   // otherwise leak the customer's name, email, phone, and address.
+  //
+  // `isOwner` is tracked separately from `authorized`: a guest viewing via
+  // the checkout access token is authorized to see the receipt, but only the
+  // logged-in account that owns the order (i.e. can pass requireSession() +
+  // the client-id match in cancelMyOrder) should see the cancel affordance.
   let authorized = Boolean(token && order.accessToken && token === order.accessToken);
-  if (!authorized) {
-    const session = await getCurrentSession();
-    if (session) {
-      const client = await prisma.client.findUnique({ where: { userId: session.user.id } });
-      authorized = Boolean(client && order.clientId === client.id);
+  let isOwner = false;
+  const session = await getCurrentSession();
+  if (session) {
+    const client = await prisma.client.findUnique({ where: { userId: session.user.id } });
+    if (client && order.clientId === client.id) {
+      authorized = true;
+      isOwner = true;
     }
   }
   if (!authorized) notFound();
 
   const shipping = order.fulfillment === "SHIPPING";
+  const orderRef = `#${order.id.slice(-8).toUpperCase()}`;
+  const cancellable = isOwner && CANCELLABLE.has(order.status);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
@@ -50,7 +84,9 @@ export default async function OrderConfirmationPage({
           Your order is confirmed. We&apos;ve sent a confirmation to{" "}
           <span className="font-medium text-foreground">{order.contactEmail}</span>.
         </p>
-        <p className="mt-1 font-mono text-sm text-muted-foreground">Order #{order.id.slice(-8).toUpperCase()}</p>
+        <p className="mt-2 flex items-center justify-center gap-2 font-mono text-sm text-muted-foreground">
+          Order {orderRef} <OrderStatusBadge status={order.status} />
+        </p>
       </div>
 
       <div className="mt-8 rounded-2xl border border-border bg-card p-5">
@@ -97,6 +133,13 @@ export default async function OrderConfirmationPage({
           </div>
         </dl>
       </div>
+
+      {cancellable && (
+        <div className="mt-6 flex flex-col items-center gap-2 text-center">
+          <p className="text-sm text-muted-foreground">Changed your mind?</p>
+          <CancelOrderButton orderId={order.id} orderRef={orderRef} />
+        </div>
+      )}
 
       <div className="mt-8 flex justify-center gap-3">
         <Button variant="outline" render={<Link href="/store" />}>

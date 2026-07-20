@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarDays, Clock, ArrowRight } from "lucide-react";
+import { CalendarDays, Clock, ArrowRight, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { AppointmentStatusBadge } from "@/components/status-badge";
+import { CancelBookingButton } from "@/components/portal/cancel-booking-button";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/format";
+import { getBusinessDetails } from "@/lib/business-data";
 
 export const metadata: Metadata = { title: "Appointments" };
 
 export default async function PortalAppointmentsPage() {
   const session = await getCurrentSession();
   const client = await prisma.client.findUnique({ where: { userId: session!.user.id } });
+
+  // Kick this off alongside the appointment queries below — it doesn't depend on them.
+  const businessPromise = getBusinessDetails();
 
   const [upcoming, past] = client
     ? await Promise.all([
@@ -32,6 +37,8 @@ export default async function PortalAppointmentsPage() {
       ])
     : [[], []];
 
+  const business = await businessPromise;
+
   const dateTimeFmt = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Sydney",
     weekday: "short",
@@ -42,6 +49,7 @@ export default async function PortalAppointmentsPage() {
   });
 
   // Count how many dogs share each bookingGroupId so grouped rows can show a hint.
+  // This is a single pass over the appointments we already fetched — no per-row queries.
   const bookingGroupCounts = new Map<string, number>();
   for (const apt of [...upcoming, ...past]) {
     if (!apt.bookingGroupId) continue;
@@ -74,6 +82,8 @@ export default async function PortalAppointmentsPage() {
               apt={apt}
               dateTimeFmt={dateTimeFmt}
               bookingGroupSize={apt.bookingGroupId ? bookingGroupCounts.get(apt.bookingGroupId) ?? 1 : 1}
+              isUpcoming
+              contactPhone={business.contactPhone}
             />
           ))}
         </div>
@@ -92,6 +102,8 @@ export default async function PortalAppointmentsPage() {
               apt={apt}
               dateTimeFmt={dateTimeFmt}
               bookingGroupSize={apt.bookingGroupId ? bookingGroupCounts.get(apt.bookingGroupId) ?? 1 : 1}
+              isUpcoming={false}
+              contactPhone={business.contactPhone}
             />
           ))}
         </div>
@@ -104,6 +116,8 @@ function AppointmentRow({
   apt,
   dateTimeFmt,
   bookingGroupSize,
+  isUpcoming,
+  contactPhone,
 }: {
   apt: {
     id: string;
@@ -115,15 +129,25 @@ function AppointmentRow({
   };
   dateTimeFmt: Intl.DateTimeFormat;
   bookingGroupSize?: number;
+  isUpcoming: boolean;
+  contactPhone: string;
 }) {
   const otherDogsCount = (bookingGroupSize ?? 1) - 1;
+  const cancellable =
+    isUpcoming &&
+    (apt.status === "CONFIRMED" || apt.status === "PENDING_PAYMENT") &&
+    apt.startAt.getTime() > Date.now();
+  const telHref = `tel:${contactPhone.replace(/[^\d+]/g, "")}`;
 
   return (
-    <Link href={`/portal/appointments/${apt.id}`} className="group block">
-      <Card className="transition-colors group-hover:border-accent-solid/50">
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm">
-          <div>
-            <p className="font-semibold">
+    // The card itself is not a link — the title area and "View details" are
+    // separate links so real action buttons (Cancel booking, Book again) can
+    // live in the footer without nesting interactive elements.
+    <Card>
+      <CardContent className="py-4 text-sm">
+        <Link href={`/portal/appointments/${apt.id}`} className="group/title flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold group-hover/title:text-accent-solid">
               {apt.primaryService.name} for {apt.pet.name}
             </p>
             <p className="mt-1 flex items-center gap-1.5 text-muted-foreground">
@@ -136,16 +160,49 @@ function AppointmentRow({
             )}
           </div>
           <div className="flex flex-col items-end gap-1.5">
-            <span className="inline-flex items-center gap-1 text-sm font-bold text-accent-solid">
-              View details <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">{formatCents(apt.totalPriceCents)}</span>
-              <AppointmentStatusBadge status={apt.status} />
-            </div>
+            <span className="text-muted-foreground">{formatCents(apt.totalPriceCents)}</span>
+            <AppointmentStatusBadge status={apt.status} />
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+        </Link>
+      </CardContent>
+
+      <CardFooter className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href={`/portal/appointments/${apt.id}`}
+          className="inline-flex items-center gap-1 text-sm font-bold text-accent-solid hover:underline"
+        >
+          View details <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+
+        {isUpcoming ? (
+          cancellable ? (
+            <CancelBookingButton
+              appointmentId={apt.id}
+              dogCount={bookingGroupSize ?? 1}
+              petName={apt.pet.name}
+              serviceName={apt.primaryService.name}
+              startAt={apt.startAt}
+              size="touch"
+            />
+          ) : (
+            <div className="flex flex-col items-end gap-1 text-right">
+              <Button variant="destructive" size="touch" disabled>
+                <XCircle className="h-4 w-4" /> Cancel booking
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Already started — call{" "}
+                <a href={telHref} className="font-medium text-foreground underline underline-offset-4">
+                  {contactPhone}
+                </a>
+              </p>
+            </div>
+          )
+        ) : (
+          <Button variant="outline" size="touch" render={<Link href="/book" />}>
+            Book again
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
   );
 }
