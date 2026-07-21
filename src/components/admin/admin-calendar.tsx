@@ -6,6 +6,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import luxon3Plugin from "@fullcalendar/luxon3";
 import type {
   DatesSetArg,
   DateSelectArg,
@@ -18,6 +19,23 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { runAction } from "@/lib/run-action";
 import { createBlockedTimeSlot, deleteBlockedTimeSlot } from "@/lib/actions/admin-calendar";
+
+/** The salon's timezone. The calendar is pinned to this so it reads correctly
+ * no matter where the owner is viewing from (matches BUSINESS_TIMEZONE in
+ * src/lib/availability.ts). */
+const BUSINESS_TIMEZONE = "Australia/Sydney";
+
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+const SYDNEY_WEEKDAY_FMT = new Intl.DateTimeFormat("en-US", { timeZone: BUSINESS_TIMEZONE, weekday: "short" });
+
+/** The 0–6 weekday of a calendar column, read in the salon's timezone. Both
+ * getDay() (viewer-local) and getUTCDay() give the wrong answer once the
+ * calendar is pinned to a timezone different from the viewer's, because the
+ * marker Date FullCalendar hands us doesn't line up with either. Formatting in
+ * the business timezone is correct regardless of how the marker is expressed. */
+function sydneyWeekday(date: Date): number {
+  return WEEKDAY_INDEX[SYDNEY_WEEKDAY_FMT.format(date)];
+}
 
 export type CalendarEventDTO = {
   id: string;
@@ -104,7 +122,10 @@ export function AdminCalendar({
   }, [businessHours]);
 
   function dayHeaderContent(arg: DayHeaderContentArg) {
-    const closed = closedWeekdays.has(arg.date.getDay());
+    // Read the column's weekday in the salon's timezone — see sydneyWeekday.
+    // This must match how FullCalendar maps businessHours to columns, so the
+    // "Closed" label and the shaded background always agree.
+    const closed = closedWeekdays.has(sydneyWeekday(arg.date));
     return (
       <span className="flex flex-col items-center gap-0 py-0.5 leading-tight">
         <span>{arg.text}</span>
@@ -146,7 +167,7 @@ export function AdminCalendar({
   }
 
   function handleSelect(info: DateSelectArg) {
-    const label = `${info.start.toLocaleString("en-AU", { timeZone: "Australia/Sydney", weekday: "short", hour: "numeric", minute: "2-digit" })} – ${info.end.toLocaleString("en-AU", { timeZone: "Australia/Sydney", hour: "numeric", minute: "2-digit" })}`;
+    const label = `${info.start.toLocaleString("en-AU", { timeZone: BUSINESS_TIMEZONE, weekday: "short", hour: "numeric", minute: "2-digit" })} – ${info.end.toLocaleString("en-AU", { timeZone: BUSINESS_TIMEZONE, hour: "numeric", minute: "2-digit" })}`;
     setBlockReason("");
     setPendingBlock({ startIso: info.start.toISOString(), endIso: info.end.toISOString(), label });
   }
@@ -227,7 +248,13 @@ export function AdminCalendar({
 
       <FullCalendar
         ref={calendarRef}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
+        // Pin the whole calendar to the salon's timezone. Without this,
+        // FullCalendar renders in the VIEWER's browser timezone, so the owner
+        // viewing from overseas would see every appointment shifted by hours
+        // (a Sydney 1pm groom showing the night before, off the bottom of the
+        // grid). The luxon plugin is what enables a named IANA timezone here.
+        timeZone={BUSINESS_TIMEZONE}
         initialView="timeGridWeek"
         headerToolbar={false}
         datesSet={handleDatesSet}
