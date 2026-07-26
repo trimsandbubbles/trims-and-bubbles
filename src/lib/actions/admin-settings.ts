@@ -11,7 +11,6 @@ const settingsSchema = z.object({
   contactPhone: z.string().optional(),
   contactEmail: z.string().email("Enter a valid email").optional().or(z.literal("")),
   depositPercentage: z.number().int().min(0).max(100),
-  bufferMinutes: z.number().int().min(0).max(120),
   fullAddress: z.string().max(200, "Keep the address under 200 characters").optional().or(z.literal("")),
   serviceAreaNote: z.string().max(300, "Keep the note under 300 characters").optional().or(z.literal("")),
   credentialTitle: z.string().max(120, "Keep the qualification title under 120 characters").optional().or(z.literal("")),
@@ -38,7 +37,6 @@ export async function updateBusinessSettings(input: z.infer<typeof settingsSchem
     contactPhone: d.contactPhone?.trim() || null,
     contactEmail: d.contactEmail?.trim() || null,
     depositPercentage: d.depositPercentage,
-    bufferMinutes: d.bufferMinutes,
     fullAddress: d.fullAddress?.trim() || null,
     serviceAreaNote: d.serviceAreaNote?.trim() || null,
     credentialTitle: d.credentialTitle?.trim() || null,
@@ -48,8 +46,13 @@ export async function updateBusinessSettings(input: z.infer<typeof settingsSchem
   await prisma.businessSettings.upsert({
     where: { id: 1 },
     update: fields,
-    create: { id: 1, ...fields },
+    // Buffer is pinned to 0: the salon runs fixed hourly drop-off slots, and any
+    // gap between bookings would silently swallow the very next slot. It's no
+    // longer owner-editable, so a fresh install starts at 0 too.
+    create: { id: 1, ...fields, bufferMinutes: 0 },
   });
+
+  revalidatePath("/book");
 
   revalidatePath("/admin/settings");
   revalidatePath("/contact");

@@ -203,8 +203,6 @@ export function BookingWizard({
     );
   }
 
-  const finishAt = slot ? new Date(new Date(slot.startAt).getTime() + totalDurationMinutes * 60_000) : null;
-
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Book an appointment</h1>
@@ -288,19 +286,17 @@ export function BookingWizard({
 
         {step === "datetime" && (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              We book one back-to-back slot for {dogLines.length === 1 ? "your dog" : `all ${dogLines.length} dogs`} —
-              about {totalDurationMinutes} minutes in total.
-            </p>
+            <div className="rounded-xl border border-border bg-secondary/60 p-3 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">These are drop-off times.</span> Pick when to drop{" "}
+              {dogLines.length === 1 ? "your dog" : "your dogs"} off — they&apos;ll be pampered and ready for collection
+              later the same day.
+            </div>
             <TimeSlotPicker
               durationMinutes={totalDurationMinutes}
               closedWeekdays={closedWeekdays}
               value={slot}
               onChange={setSlot}
             />
-            {finishAt && (
-              <p className="text-sm text-muted-foreground">Estimated finish: {TIME_FMT.format(finishAt)}</p>
-            )}
           </div>
         )}
 

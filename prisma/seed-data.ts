@@ -39,7 +39,10 @@ export const serviceDefs: ServiceDef[] = [
     description:
       "The full works: bath with a coat-appropriate shampoo, blow-dry, full body clip or scissor-finish to breed standard or your preferred style, nail trim, and ear clean. Best for curly, non-shedding coats — poodles, cavoodles, schnauzers, and other oodle-type crosses — that need regular clipping to stay mat-free.",
     category: "CORE",
-    durationMinutes: 180,
+    // Every service is a one-hour drop-off slot; the dog stays with us and is
+    // ready for collection later the same day. Uniform lengths are what keep
+    // adjacent hourly slots independently bookable without ever overlapping.
+    durationMinutes: 60,
     displayOrder: 1,
     prices: [
       { sizeBand: "SMALL", priceCents: 9500 },
@@ -67,7 +70,7 @@ export const serviceDefs: ServiceDef[] = [
     description:
       "Bath and blow-dry plus a light tidy-up — face, feet, sanitary areas, and a light overall trim — without a full restyle. A good middle-ground for coats that just need the edges neatened.",
     category: "CORE",
-    durationMinutes: 90,
+    durationMinutes: 60,
     displayOrder: 3,
     prices: [
       { sizeBand: "SMALL", priceCents: 7000 },
@@ -81,7 +84,7 @@ export const serviceDefs: ServiceDef[] = [
     description:
       "Undercoat removal plus a light hygiene-area trim for longer, double-coated breeds — border collies, shepherds, retrievers, and husky-type dogs — that need de-bulking rather than a short clip.",
     category: "CORE",
-    durationMinutes: 120,
+    durationMinutes: 60,
     displayOrder: 4,
     prices: [
       { sizeBand: "SMALL", priceCents: 9000 },
@@ -95,7 +98,7 @@ export const serviceDefs: ServiceDef[] = [
     description:
       "A dedicated undercoat blow-out treatment to clear loose, dead hair at the root. Best for smooth or short double-coated shedders — kelpies, cattle dogs, labradors, and staffy-type breeds.",
     category: "CORE",
-    durationMinutes: 120,
+    durationMinutes: 60,
     displayOrder: 5,
     prices: [
       { sizeBand: "SMALL", priceCents: 6500 },
@@ -108,7 +111,7 @@ export const serviceDefs: ServiceDef[] = [
     name: "Nail Clipping and Ear Cleaning",
     description: "A quick, no-bath top-up: nail trim and a gentle ear clean. Walk-ins welcome, any size.",
     category: "CORE",
-    durationMinutes: 20,
+    durationMinutes: 60,
     displayOrder: 6,
     prices: [{ sizeBand: null, priceCents: 2500 }],
   },

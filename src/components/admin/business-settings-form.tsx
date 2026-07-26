@@ -26,7 +26,6 @@ export function BusinessSettingsForm({
   const [contactPhone, setContactPhone] = useState(initial.contactPhone ?? "");
   const [contactEmail, setContactEmail] = useState(initial.contactEmail ?? "");
   const [depositPercentage, setDepositPercentage] = useState(String(initial.depositPercentage));
-  const [bufferMinutes, setBufferMinutes] = useState(String(initial.bufferMinutes));
   const [fullAddress, setFullAddress] = useState(initial.fullAddress ?? "");
   const [serviceAreaNote, setServiceAreaNote] = useState(initial.serviceAreaNote ?? "");
   const [credentialTitle, setCredentialTitle] = useState(initial.credentialTitle ?? "");
@@ -41,7 +40,6 @@ export function BusinessSettingsForm({
         contactPhone: contactPhone || undefined,
         contactEmail: contactEmail || undefined,
         depositPercentage: Number(depositPercentage),
-        bufferMinutes: Number(bufferMinutes),
         fullAddress: fullAddress || undefined,
         serviceAreaNote: serviceAreaNote || undefined,
         credentialTitle: credentialTitle || undefined,
@@ -71,25 +69,19 @@ export function BusinessSettingsForm({
           <Input id="contact-email" type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="deposit-pct">Deposit required (%)</Label>
-          <Input
-            id="deposit-pct"
-            type="number"
-            min="0"
-            max="100"
-            value={depositPercentage}
-            onChange={(e) => setDepositPercentage(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">Charged upfront when a client books, taken off the total at the end.</p>
-          <p className="text-xs text-muted-foreground">Set to 0 if you don&apos;t want to take deposits — clients will book without paying anything upfront.</p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="buffer-minutes">Buffer between bookings (minutes)</Label>
-          <Input id="buffer-minutes" type="number" min="0" max="120" value={bufferMinutes} onChange={(e) => setBufferMinutes(e.target.value)} />
-          <p className="text-xs text-muted-foreground">Extra gap kept free after each appointment for clean-up and running late.</p>
-        </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="deposit-pct">Deposit required (%)</Label>
+        <Input
+          id="deposit-pct"
+          type="number"
+          min="0"
+          max="100"
+          value={depositPercentage}
+          onChange={(e) => setDepositPercentage(e.target.value)}
+          className="sm:max-w-xs"
+        />
+        <p className="text-xs text-muted-foreground">Charged upfront when a client books, taken off the total at the end.</p>
+        <p className="text-xs text-muted-foreground">Set to 0 if you don&apos;t want to take deposits — clients will book without paying anything upfront.</p>
       </div>
 
       <div className="border-t border-border pt-4">
