@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireStaffOrOwner } from "@/lib/session";
 
@@ -167,13 +168,18 @@ export async function saveWeeklyAvailability(days: z.infer<typeof daySaveSchema>
 const exceptionSchema = z
   .object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
-    type: z.enum(["CLOSED", "CUSTOM_HOURS"]),
+    type: z.enum(["CLOSED", "CUSTOM_HOURS", "CUSTOM_SLOTS"]),
     customStartTime: z.string().optional(),
     customEndTime: z.string().optional(),
+    // For CUSTOM_SLOTS: the drop-off slots that apply to this one date only.
+    customSlots: z.array(windowSchema).max(24).optional(),
     reason: z.string().optional(),
   })
-  .refine((d) => d.type === "CLOSED" || (d.customStartTime && d.customEndTime), {
+  .refine((d) => d.type !== "CUSTOM_HOURS" || (d.customStartTime && d.customEndTime), {
     message: "Custom hours need both a start and end time.",
+  })
+  .refine((d) => d.type !== "CUSTOM_SLOTS" || (d.customSlots && d.customSlots.length > 0), {
+    message: "Add at least one drop-off time for that date.",
   });
 
 export async function addAvailabilityException(input: z.infer<typeof exceptionSchema>): Promise<ActionResult> {
@@ -184,24 +190,33 @@ export async function addAvailabilityException(input: z.infer<typeof exceptionSc
   }
   const d = parsed.data;
 
+  if (d.type === "CUSTOM_HOURS" && d.customEndTime! <= d.customStartTime!) {
+    return { status: "error", message: "Custom hours: the finish time must be after the start time." };
+  }
+  if (d.type === "CUSTOM_SLOTS") {
+    const err = assertOrderedNonOverlapping(d.customSlots!, "That date", "drop-off time");
+    if (err) return { status: "error", message: err };
+  }
+
+  // customSlots is a JSON column — store the array for CUSTOM_SLOTS, SQL NULL otherwise.
+  const fields = {
+    type: d.type,
+    customStartTime: d.type === "CUSTOM_HOURS" ? d.customStartTime : null,
+    customEndTime: d.type === "CUSTOM_HOURS" ? d.customEndTime : null,
+    customSlots: d.type === "CUSTOM_SLOTS" ? d.customSlots : Prisma.DbNull,
+    reason: d.reason || null,
+  };
+
   await prisma.availabilityException.upsert({
     where: { date: new Date(`${d.date}T00:00:00.000Z`) },
-    update: {
-      type: d.type,
-      customStartTime: d.type === "CUSTOM_HOURS" ? d.customStartTime : null,
-      customEndTime: d.type === "CUSTOM_HOURS" ? d.customEndTime : null,
-      reason: d.reason || null,
-    },
-    create: {
-      date: new Date(`${d.date}T00:00:00.000Z`),
-      type: d.type,
-      customStartTime: d.type === "CUSTOM_HOURS" ? d.customStartTime : null,
-      customEndTime: d.type === "CUSTOM_HOURS" ? d.customEndTime : null,
-      reason: d.reason || null,
-    },
+    update: fields,
+    create: { date: new Date(`${d.date}T00:00:00.000Z`), ...fields },
   });
 
   revalidatePath("/admin/availability");
+  revalidatePath("/admin/calendar");
+  revalidatePath("/book");
+  revalidatePath("/contact");
   return { status: "success" };
 }
 

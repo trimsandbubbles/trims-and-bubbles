@@ -68,6 +68,10 @@ export async function getExceptionForDate(dateStr: string): Promise<DateExceptio
     type: exception.type,
     customStartTime: exception.customStartTime,
     customEndTime: exception.customEndTime,
+    // customSlots is a JSON column; when present it's an array of {startTime,endTime}.
+    customSlots: Array.isArray(exception.customSlots)
+      ? (exception.customSlots as { startTime: string; endTime: string }[])
+      : null,
   };
 }
 

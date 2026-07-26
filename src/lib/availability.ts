@@ -32,9 +32,11 @@ export type DayHours = DayWindow[] | null;
 export type AvailabilityMode = "OPEN_HOURS" | "FIXED_SLOTS";
 
 export type DateException = {
-  type: "CLOSED" | "CUSTOM_HOURS";
+  type: "CLOSED" | "CUSTOM_HOURS" | "CUSTOM_SLOTS";
   customStartTime?: string | null;
   customEndTime?: string | null;
+  /** For CUSTOM_SLOTS: the hand-defined drop-off slots for this one date. */
+  customSlots?: DayWindow[] | null;
 };
 
 export type AvailabilityInputs = {
@@ -83,9 +85,9 @@ function zonedWallClockToInstant(dateStr: string, hhmm: string): Date {
 /**
  * Resolves what a date's bookable ranges are AND how to interpret them.
  *
- * A one-off exception always wins and is expressed as OPEN_HOURS (a closed day
- * has no ranges; a custom-hours day is one window) — so an exception behaves
- * identically regardless of the weekday's usual mode.
+ * A one-off exception always wins over the weekday's usual schedule: CLOSED has
+ * no ranges; CUSTOM_HOURS is one open window; CUSTOM_SLOTS is a hand-defined set
+ * of fixed drop-off slots for that one date.
  *
  * `ranges` means open windows in OPEN_HOURS mode, or the fixed slots in
  * FIXED_SLOTS mode. Empty ranges = closed.
@@ -96,11 +98,13 @@ function resolveDaySchedule(
   inputs: Pick<AvailabilityInputs, "dateStr" | "weeklyHours" | "modes" | "fixedSlots" | "exception">,
 ): ResolvedDaySchedule {
   if (inputs.exception) {
-    if (inputs.exception.type === "CLOSED") return { mode: "OPEN_HOURS", ranges: [] };
-    if (inputs.exception.customStartTime && inputs.exception.customEndTime) {
+    const ex = inputs.exception;
+    if (ex.type === "CLOSED") return { mode: "OPEN_HOURS", ranges: [] };
+    if (ex.type === "CUSTOM_SLOTS") return { mode: "FIXED_SLOTS", ranges: ex.customSlots ?? [] };
+    if (ex.customStartTime && ex.customEndTime) {
       return {
         mode: "OPEN_HOURS",
-        ranges: [{ startTime: inputs.exception.customStartTime, endTime: inputs.exception.customEndTime }],
+        ranges: [{ startTime: ex.customStartTime, endTime: ex.customEndTime }],
       };
     }
   }

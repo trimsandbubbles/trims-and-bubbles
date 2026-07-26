@@ -38,6 +38,9 @@ export default async function AdminAvailabilityPage() {
             type: e.type,
             customStartTime: e.customStartTime,
             customEndTime: e.customEndTime,
+            customSlots: Array.isArray(e.customSlots)
+              ? (e.customSlots as { startTime: string; endTime: string }[])
+              : null,
             reason: e.reason,
           }))}
         />

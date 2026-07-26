@@ -99,6 +99,46 @@ describe("getOpenSlotsForDate", () => {
     expect(slots).toHaveLength(3);
   });
 
+  it("offers only the listed slots on a CUSTOM_SLOTS exception (one-off date), overriding a normally-open day", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: TUESDAY, // normally 09:00-17:00 open hours
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      exception: {
+        type: "CUSTOM_SLOTS",
+        customSlots: [
+          { startTime: "13:00", endTime: "14:00" },
+          { startTime: "15:00", endTime: "16:00" },
+        ],
+      },
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    // One start per slot (fixed-slots behaviour), not the usual open-hours grid.
+    expect(slots).toHaveLength(2);
+    expect(slots[0].startAt.toISOString()).toBe("2026-07-14T03:00:00.000Z"); // 13:00 AEST
+    expect(slots[1].startAt.toISOString()).toBe("2026-07-14T05:00:00.000Z"); // 15:00 AEST
+  });
+
+  it("opens an otherwise-closed day with CUSTOM_SLOTS, and drops a slot too short for the booking", () => {
+    const slots = getOpenSlotsForDate({
+      dateStr: SUNDAY, // normally closed
+      durationMinutes: 60,
+      weeklyHours: WEEKLY_HOURS,
+      exception: {
+        type: "CUSTOM_SLOTS",
+        customSlots: [
+          { startTime: "08:00", endTime: "09:00" }, // fits a 60-min booking
+          { startTime: "10:00", endTime: "10:30" }, // too short — dropped
+        ],
+      },
+      busy: [],
+      now: FAR_PAST_NOW,
+    });
+    expect(slots).toHaveLength(1);
+    expect(slots[0].startAt.toISOString()).toBe("2026-07-11T22:00:00.000Z"); // 08:00 AEST
+  });
+
   it("excludes slots that overlap an existing appointment", () => {
     const slots = getOpenSlotsForDate({
       dateStr: TUESDAY,

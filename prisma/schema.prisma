@@ -142,6 +142,7 @@ enum PaymentMethod {
 enum ExceptionType {
   CLOSED
   CUSTOM_HOURS
+  CUSTOM_SLOTS
 }
 
 /// How a weekday's bookable times are decided.
@@ -390,6 +391,10 @@ model AvailabilityException {
   type            ExceptionType
   customStartTime String?
   customEndTime   String?
+  // For CUSTOM_SLOTS: hand-defined drop-off slots for this one date only, as a
+  // JSON array of { startTime, endTime } (e.g. [{ "startTime": "13:00",
+  // "endTime": "14:00" }]). Null for CLOSED / CUSTOM_HOURS.
+  customSlots     Json?
   reason          String?
 
   @@unique([date])
