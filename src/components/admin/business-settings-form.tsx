@@ -17,6 +17,7 @@ export function BusinessSettingsForm({
     depositPercentage: number;
     bufferMinutes: number;
     fullAddress: string | null;
+    bookingAddress: string | null;
     serviceAreaNote: string | null;
     credentialTitle: string | null;
     credentialInstitution: string | null;
@@ -27,6 +28,7 @@ export function BusinessSettingsForm({
   const [contactEmail, setContactEmail] = useState(initial.contactEmail ?? "");
   const [depositPercentage, setDepositPercentage] = useState(String(initial.depositPercentage));
   const [fullAddress, setFullAddress] = useState(initial.fullAddress ?? "");
+  const [bookingAddress, setBookingAddress] = useState(initial.bookingAddress ?? "");
   const [serviceAreaNote, setServiceAreaNote] = useState(initial.serviceAreaNote ?? "");
   const [credentialTitle, setCredentialTitle] = useState(initial.credentialTitle ?? "");
   const [credentialInstitution, setCredentialInstitution] = useState(initial.credentialInstitution ?? "");
@@ -41,6 +43,7 @@ export function BusinessSettingsForm({
         contactEmail: contactEmail || undefined,
         depositPercentage: Number(depositPercentage),
         fullAddress: fullAddress || undefined,
+        bookingAddress: bookingAddress || undefined,
         serviceAreaNote: serviceAreaNote || undefined,
         credentialTitle: credentialTitle || undefined,
         credentialInstitution: credentialInstitution || undefined,
@@ -96,6 +99,19 @@ export function BusinessSettingsForm({
               onChange={(e) => setFullAddress(e.target.value)}
               placeholder="e.g. Hobday Place, Dunlop ACT"
             />
+            <p className="text-xs text-muted-foreground">Public — keep this general (suburb only), not your exact street address.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="booking-address">Drop-off address (shown only after someone books)</Label>
+            <Input
+              id="booking-address"
+              value={bookingAddress}
+              onChange={(e) => setBookingAddress(e.target.value)}
+              placeholder="e.g. 10 Hobday Place, Dunlop ACT 2615"
+            />
+            <p className="text-xs text-muted-foreground">
+              Private — the exact address for drop-off. Shown on the booking confirmation and emailed to the customer, never on the public site.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="service-area-note">Pickup / drop-off note</Label>

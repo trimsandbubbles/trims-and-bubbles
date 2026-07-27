@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getActiveServicesWithPricing } from "@/lib/services-data";
+import { getActiveServicesWithPricing, getBusinessSettings } from "@/lib/services-data";
 import { getCurrentSession } from "@/lib/session";
 import { getMyPets } from "@/lib/actions/client-profile";
 import { prisma } from "@/lib/prisma";
@@ -12,12 +12,13 @@ import { NeedHelp } from "@/components/need-help";
 export const metadata: Metadata = { title: "Book an Appointment" };
 
 export default async function BookPage() {
-  const [allServices, session, rules, modes, fixedSlots] = await Promise.all([
+  const [allServices, session, rules, modes, fixedSlots, settings] = await Promise.all([
     getActiveServicesWithPricing(),
     getCurrentSession(),
     prisma.availabilityRule.findMany(),
     getDayModesMap(),
     getFixedSlotsMap(),
+    getBusinessSettings(),
   ]);
 
   // Sizes are SMALL/MEDIUM/LARGE now (XL was removed from the offering). The DB
@@ -62,6 +63,7 @@ export default async function BookPage() {
         initialSession={session ? { name: session.user.name, email: session.user.email, phone } : null}
         initialPets={pets}
         closedWeekdays={closedWeekdays}
+        bookingAddress={settings.bookingAddress ?? null}
       />
       <div className="mx-auto max-w-2xl px-4 pb-14 sm:px-6">
         <NeedHelp />

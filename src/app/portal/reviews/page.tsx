@@ -13,7 +13,8 @@ export default async function PortalReviewPage() {
   const session = await getCurrentSession();
   const client = await prisma.client.findUnique({ where: { userId: session!.user.id } });
   const review = client ? await prisma.review.findUnique({ where: { clientId: client.id } }) : null;
-  const isLive = review?.approved && !review.hidden;
+  // Reviews publish immediately; "not live" now only means the owner has hidden it.
+  const isLive = !!review && !review.hidden;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
@@ -34,19 +35,19 @@ export default async function PortalReviewPage() {
             )}
             <div className="text-sm">
               <p className="font-medium">
-                {isLive ? "Your review is live on our website. Thank you!" : "Thanks! Your review is waiting to be approved."}
+                {isLive ? "Your review is live on our website. Thank you!" : "Your review isn't currently shown on our website."}
               </p>
               <p className="mt-1 text-muted-foreground">
                 {isLive ? (
                   <>
-                    You can update it below anytime — edits are checked again before they go live.{" "}
+                    It posts straight to our reviews page — you can update it below anytime.{" "}
                     <Link href="/reviews" className="underline hover:text-foreground">
                       See it on the reviews page
                     </Link>
                     .
                   </>
                 ) : (
-                  "It will appear on our public reviews page once the team approves it."
+                  "You can update it below anytime, or get in touch if you have any questions."
                 )}
               </p>
               <div className="mt-3">

@@ -12,6 +12,7 @@ const settingsSchema = z.object({
   contactEmail: z.string().email("Enter a valid email").optional().or(z.literal("")),
   depositPercentage: z.number().int().min(0).max(100),
   fullAddress: z.string().max(200, "Keep the address under 200 characters").optional().or(z.literal("")),
+  bookingAddress: z.string().max(200, "Keep the address under 200 characters").optional().or(z.literal("")),
   serviceAreaNote: z.string().max(300, "Keep the note under 300 characters").optional().or(z.literal("")),
   credentialTitle: z.string().max(120, "Keep the qualification title under 120 characters").optional().or(z.literal("")),
   credentialInstitution: z
@@ -38,6 +39,7 @@ export async function updateBusinessSettings(input: z.infer<typeof settingsSchem
     contactEmail: d.contactEmail?.trim() || null,
     depositPercentage: d.depositPercentage,
     fullAddress: d.fullAddress?.trim() || null,
+    bookingAddress: d.bookingAddress?.trim() || null,
     serviceAreaNote: d.serviceAreaNote?.trim() || null,
     credentialTitle: d.credentialTitle?.trim() || null,
     credentialInstitution: d.credentialInstitution?.trim() || null,

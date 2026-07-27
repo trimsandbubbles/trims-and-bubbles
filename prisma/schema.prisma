@@ -453,6 +453,10 @@ model BusinessSettings {
   // (which required a developer + redeploy to change). Nullable so an empty value
   // falls back to the config default in code.
   fullAddress          String?
+  // The exact drop-off street address, shown to a customer ONLY after they book
+  // (on the confirmation screen + email) — deliberately NOT public like
+  // fullAddress, since the salon runs from a private home.
+  bookingAddress       String?
   serviceAreaNote      String?
   credentialTitle      String?
   credentialInstitution String?

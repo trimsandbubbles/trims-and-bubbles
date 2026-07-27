@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, ChevronLeft } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronLeft, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,12 +72,14 @@ export function BookingWizard({
   initialSession,
   initialPets,
   closedWeekdays,
+  bookingAddress,
 }: {
   services: ServiceDTO[];
   addOnServices: ServiceDTO[];
   initialSession: { name: string; email: string; phone: string | null } | null;
   initialPets: PetDTO[];
   closedWeekdays: number[];
+  bookingAddress?: string | null;
 }) {
   const [step, setStep] = useState<Step>("dogs");
   const [hasSession, setHasSession] = useState(!!initialSession);
@@ -193,6 +195,15 @@ export function BookingWizard({
           {dogCount === 1 ? "Your dog is" : `All ${dogCount} dogs are`} confirmed for{" "}
           {slot && WHEN_FMT.format(new Date(slot.startAt))}.
         </p>
+        {bookingAddress && (
+          <div className="mx-auto mt-6 max-w-sm rounded-xl border border-border bg-secondary/60 p-4 text-left">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <MapPin className="h-4 w-4 text-primary" /> Drop-off address
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{bookingAddress}</p>
+            <p className="mt-2 text-xs text-muted-foreground">We&apos;ve emailed you these details too.</p>
+          </div>
+        )}
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Button render={<Link href="/portal/appointments" />}>View my appointments</Button>
           <Button variant="outline" render={<Link href="/portal" />}>

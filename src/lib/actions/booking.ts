@@ -293,6 +293,7 @@ export async function createBooking(rawInput: BookingInput): Promise<BookingResu
     customerEmail: session.user.email,
     startAt,
     clientNote: input.notesFromClient || null,
+    bookingAddress: settings.bookingAddress || null,
     dogs: resolved.map((r) => ({ petName: r.petName, serviceName: r.serviceName, addOnNames: r.addOns.map((a) => a.name) })),
   });
 
@@ -332,6 +333,7 @@ type NewBookingNotification = {
   customerEmail: string;
   startAt: Date;
   clientNote: string | null;
+  bookingAddress: string | null;
   dogs: BookingDogLine[];
 };
 
@@ -373,11 +375,16 @@ async function notifyNewBooking(n: NewBookingNotification): Promise<void> {
     replyTo: n.customerEmail,
   });
 
+  const addressHtml = n.bookingAddress
+    ? `<p style="margin:0 0 12px;">Drop-off address: <strong>${escapeHtml(n.bookingAddress)}</strong></p>`
+    : "";
+  const addressText = n.bookingAddress ? ` Drop-off address: ${n.bookingAddress}.` : "";
   const customerBody = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(n.customerName)},</p>
     <p style="margin:0 0 12px;">Thanks for booking with Trims &amp; Bubbles! 🐾</p>
     <p style="margin:0 0 6px;">When: <strong>${escapeHtml(when)}</strong></p>
     ${listHtml}
+    ${addressHtml}
     <p style="margin:0 0 12px;">Payment is in person on the day (cash). See you soon!</p>
     <p style="margin:0;">— The Trims &amp; Bubbles team</p>
   `;
@@ -385,7 +392,7 @@ async function notifyNewBooking(n: NewBookingNotification): Promise<void> {
     to: n.customerEmail,
     subject: `You're booked in — ${when}`,
     html: emailLayout(customerBody),
-    text: `Hi ${n.customerName}, thanks for booking with Trims & Bubbles! ${when}. ${listText}. Payment in person (cash). See you soon!`,
+    text: `Hi ${n.customerName}, thanks for booking with Trims & Bubbles! ${when}. ${listText}.${addressText} Payment in person (cash). See you soon!`,
   });
 }
 

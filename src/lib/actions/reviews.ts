@@ -37,8 +37,9 @@ export type SubmitReviewResult =
  * A logged-in client leaves (or updates) their review — star rating, comment,
  * an optional display name, and up to {@link MAX_REVIEW_PHOTOS} photos. The
  * Client row is resolved from the session — never from client input — so a
- * client can only ever touch their own review. Any submit resets `approved` to
- * false so the owner re-approves the current version before it appears publicly.
+ * client can only ever touch their own review. Reviews publish immediately
+ * (`approved: true`); the owner can hide or delete any review afterwards. A
+ * re-submit clears `hidden` so an edited review goes live again.
  */
 export async function submitReview(formData: FormData): Promise<SubmitReviewResult> {
   const session = await requireSession();
@@ -110,10 +111,12 @@ export async function submitReview(formData: FormData): Promise<SubmitReviewResu
 
   const photoUrls = [...keepUrls, ...newUrls];
 
+  // Reviews go live immediately (approved: true). The owner keeps hide/delete as
+  // the safety valve for anything hostile or untrue.
   await prisma.review.upsert({
     where: { clientId: client.id },
-    update: { rating, body, displayName, photoUrls, approved: false, hidden: false },
-    create: { clientId: client.id, rating, body, displayName, photoUrls },
+    update: { rating, body, displayName, photoUrls, approved: true, hidden: false },
+    create: { clientId: client.id, rating, body, displayName, photoUrls, approved: true },
   });
 
   // Best-effort cleanup of any photos the client removed this time.

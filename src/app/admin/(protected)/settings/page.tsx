@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { getBusinessDetails } from "@/lib/business-data";
+import { getBusinessSettings } from "@/lib/services-data";
 import { BusinessSettingsForm } from "@/components/admin/business-settings-form";
 
 export const metadata: Metadata = { title: "Settings | Admin" };
@@ -10,7 +11,7 @@ export default async function AdminSettingsPage() {
   const session = await getCurrentSession();
   if (session?.user.role !== "owner") redirect("/admin");
 
-  const settings = await getBusinessDetails();
+  const [settings, raw] = await Promise.all([getBusinessDetails(), getBusinessSettings()]);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -26,6 +27,7 @@ export default async function AdminSettingsPage() {
             depositPercentage: settings.depositPercentage,
             bufferMinutes: settings.bufferMinutes,
             fullAddress: settings.fullAddress,
+            bookingAddress: raw.bookingAddress ?? null,
             serviceAreaNote: settings.serviceAreaNote,
             credentialTitle: settings.credentialTitle,
             credentialInstitution: settings.credentialInstitution,

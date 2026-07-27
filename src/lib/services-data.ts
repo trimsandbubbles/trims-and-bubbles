@@ -25,6 +25,7 @@ export async function getBusinessSettings() {
       contactEmail: null,
       socials: null,
       bufferMinutes: 15,
+      bookingAddress: null,
       updatedAt: new Date(),
     }
   );

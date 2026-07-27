@@ -36,15 +36,17 @@ export default async function AdminReviewsPage() {
     dateLabel: dateFmt.format(r.createdAt),
   });
 
-  const pending = reviews.filter((r) => !r.approved && !r.hidden).map(toAdmin);
-  const live = reviews.filter((r) => r.approved && !r.hidden).map(toAdmin);
+  // Reviews publish automatically, so there's no "pending" queue — everything is
+  // either live or something the owner has explicitly hidden.
+  const live = reviews.filter((r) => !r.hidden).map(toAdmin);
   const hidden = reviews.filter((r) => r.hidden).map(toAdmin);
 
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-semibold tracking-tight">Reviews</h1>
       <p className="mt-1 text-muted-foreground">
-        Approve reviews to show them on your public reviews page. You can hide or delete any review, and reply to it.
+        Reviews post to your public page automatically. You can hide or delete any review — say, if it&apos;s unfair or
+        untrue — and reply to it.
       </p>
 
       {reviews.length === 0 ? (
@@ -55,26 +57,11 @@ export default async function AdminReviewsPage() {
       ) : (
         <div className="mt-8 space-y-8">
           <section>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-600">
-              Waiting for approval ({pending.length})
-            </h2>
-            {pending.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing waiting — you&apos;re all caught up.</p>
-            ) : (
-              <div className="space-y-4">
-                {pending.map((r) => (
-                  <ReviewModerationCard key={r.id} review={r} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-primary">
               Live on the website ({live.length})
             </h2>
             {live.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No approved reviews yet.</p>
+              <p className="text-sm text-muted-foreground">No visible reviews right now.</p>
             ) : (
               <div className="space-y-4">
                 {live.map((r) => (
