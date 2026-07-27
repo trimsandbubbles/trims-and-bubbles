@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/format";
 
 export type ChosenSlot = { dateStr: string; startAt: string; endAt: string };
 
@@ -42,8 +41,21 @@ function formatWallClock(hhmm: string): string {
   return `${h12}:${String(m).padStart(2, "0")}${period}`;
 }
 
+/** Collapses windows that touch or overlap into single spans, so a run of
+ * back-to-back drop-off slots reads as one opening ("4:00pm–8:00pm") rather
+ * than a list. A real gap (a lunch break) is preserved as separate spans. */
 function formatWindows(windows: { start: string; end: string }[]): string {
-  return windows.map((w) => `${formatWallClock(w.start)}–${formatWallClock(w.end)}`).join(", ");
+  const sorted = [...windows].sort((a, b) => a.start.localeCompare(b.start));
+  const merged: { start: string; end: string }[] = [];
+  for (const w of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && w.start <= last.end) {
+      if (w.end > last.end) last.end = w.end;
+    } else {
+      merged.push({ ...w });
+    }
+  }
+  return merged.map((w) => `${formatWallClock(w.start)}–${formatWallClock(w.end)}`).join(", ");
 }
 
 function listDayNames(dayIndexes: number[]): string {
@@ -142,10 +154,6 @@ export function TimeSlotPicker({
       />
 
       <div className="min-w-0">
-        {durationMinutes > 0 && (
-          <p className="mb-3 text-sm font-medium">This booking needs {formatDuration(durationMinutes)} total.</p>
-        )}
-
         {!selectedDate && <p className="text-sm text-muted-foreground">Pick a date to see available times.</p>}
 
         {selectedDate && loading && (
@@ -173,9 +181,8 @@ export function TimeSlotPicker({
 
         {selectedDate && !loading && !errored && !closed && hours && !fitsInADay && (
           <p className="text-sm text-muted-foreground">
-            This booking needs {formatDuration(durationMinutes)} together. {dayName}s we&apos;re open{" "}
-            {formatWindows(hours.windows)} ({formatDuration(hours.longestWindowMinutes)}), so it needs a longer day than
-            this.{" "}
+            This booking needs a longer opening than {dayName}s have. {dayName}s we&apos;re open{" "}
+            {formatWindows(hours.windows)}.{" "}
             {hours.betterWeekdays.length > 0 ? (
               <>
                 Try {hours.betterWeekdays.length === 1 ? "a " : ""}
@@ -193,8 +200,7 @@ export function TimeSlotPicker({
               {dayName}s we&apos;re open {formatWindows(hours.windows)}.
             </p>
             <p className="text-sm text-muted-foreground">
-              That day&apos;s taken. Your {formatDuration(durationMinutes)} doesn&apos;t fit around what&apos;s already
-              booked — try another date, or pick a shorter service.
+              That day&apos;s slots are all taken — try another date.
             </p>
           </div>
         )}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import { Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,7 +91,12 @@ export default async function ServicesPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">{service.description}</p>
-              <p className="mt-3 text-xs text-muted-foreground">~{service.durationMinutes} minutes</p>
+              {service.timeEstimate && (
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  {service.timeEstimate}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}

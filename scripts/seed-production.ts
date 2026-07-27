@@ -90,6 +90,7 @@ async function main() {
         description: s.description,
         category: s.category,
         durationMinutes: s.durationMinutes,
+        timeEstimate: s.timeEstimate ?? null,
         displayOrder: s.displayOrder,
         prices: {
           create: s.prices.map((p) => ({

@@ -28,6 +28,8 @@ export type ServiceDef = {
   description: string;
   category: "CORE" | "ADD_ON";
   durationMinutes: number;
+  /** Customer-facing "about how long this takes" label (owner-editable). */
+  timeEstimate?: string;
   displayOrder: number;
   prices: PriceRow[];
 };
@@ -43,6 +45,7 @@ export const serviceDefs: ServiceDef[] = [
     // ready for collection later the same day. Uniform lengths are what keep
     // adjacent hourly slots independently bookable without ever overlapping.
     durationMinutes: 60,
+    timeEstimate: "Approx. 3 hours",
     displayOrder: 1,
     prices: [
       { sizeBand: "SMALL", priceCents: 9500 },
@@ -57,6 +60,7 @@ export const serviceDefs: ServiceDef[] = [
       "A thorough bath with conditioning treatment and a full hand blow-dry and brush-out — no clipping. A great in-between-groom refresh, or a standalone option for coats that don't need trimming.",
     category: "CORE",
     durationMinutes: 60,
+    timeEstimate: "Approx. 1 hour",
     displayOrder: 2,
     prices: [
       { sizeBand: "SMALL", priceCents: 5500 },
@@ -71,6 +75,7 @@ export const serviceDefs: ServiceDef[] = [
       "Bath and blow-dry plus a light tidy-up — face, feet, sanitary areas, and a light overall trim — without a full restyle. A good middle-ground for coats that just need the edges neatened.",
     category: "CORE",
     durationMinutes: 60,
+    timeEstimate: "Approx. 1.5 hours",
     displayOrder: 3,
     prices: [
       { sizeBand: "SMALL", priceCents: 7000 },
@@ -85,6 +90,7 @@ export const serviceDefs: ServiceDef[] = [
       "Undercoat removal plus a light hygiene-area trim for longer, double-coated breeds — border collies, shepherds, retrievers, and husky-type dogs — that need de-bulking rather than a short clip.",
     category: "CORE",
     durationMinutes: 60,
+    timeEstimate: "Approx. 2 hours",
     displayOrder: 4,
     prices: [
       { sizeBand: "SMALL", priceCents: 9000 },
@@ -99,6 +105,7 @@ export const serviceDefs: ServiceDef[] = [
       "A dedicated undercoat blow-out treatment to clear loose, dead hair at the root. Best for smooth or short double-coated shedders — kelpies, cattle dogs, labradors, and staffy-type breeds.",
     category: "CORE",
     durationMinutes: 60,
+    timeEstimate: "Approx. 2 hours",
     displayOrder: 5,
     prices: [
       { sizeBand: "SMALL", priceCents: 6500 },
@@ -112,6 +119,7 @@ export const serviceDefs: ServiceDef[] = [
     description: "A quick, no-bath top-up: nail trim and a gentle ear clean. Walk-ins welcome, any size.",
     category: "CORE",
     durationMinutes: 60,
+    timeEstimate: "Approx. 20 minutes",
     displayOrder: 6,
     prices: [{ sizeBand: null, priceCents: 2500 }],
   },

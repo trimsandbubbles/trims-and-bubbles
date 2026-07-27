@@ -32,6 +32,7 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(isAddOn ? "15" : "60");
+  const [timeEstimate, setTimeEstimate] = useState("");
   // CORE: per-size dollar amounts.
   const [prices, setPrices] = useState<Record<string, string>>({ SMALL: "", MEDIUM: "", LARGE: "" });
   const [onInspection, setOnInspection] = useState(false);
@@ -48,6 +49,7 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
     setName("");
     setDescription("");
     setDurationMinutes(isAddOn ? "15" : "60");
+    setTimeEstimate("");
     setPrices({ SMALL: "", MEDIUM: "", LARGE: "" });
     setOnInspection(false);
     setFee("");
@@ -75,6 +77,7 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
           name: name.trim(),
           description: description.trim() || undefined,
           durationMinutes: duration,
+          timeEstimate: timeEstimate.trim() || undefined,
           priceCents: dollarsToCents(fee),
         }
       : {
@@ -82,6 +85,7 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
           name: name.trim(),
           description: description.trim() || undefined,
           durationMinutes: duration,
+          timeEstimate: timeEstimate.trim() || undefined,
           isOnInspection: onInspection,
           smallCents: dollarsToCents(prices.SMALL),
           mediumCents: dollarsToCents(prices.MEDIUM),
@@ -124,14 +128,12 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`new-duration-${category}`}>How long does it take? (minutes)</Label>
+          <Label htmlFor={`new-estimate-${category}`}>Approximate time (optional)</Label>
           <Input
-            id={`new-duration-${category}`}
-            type="number"
-            inputMode="numeric"
-            min="1"
-            value={durationMinutes}
-            onChange={(e) => setDurationMinutes(e.target.value)}
+            id={`new-estimate-${category}`}
+            value={timeEstimate}
+            onChange={(e) => setTimeEstimate(e.target.value)}
+            placeholder="e.g. Approx. 3 hours"
             className="h-11"
           />
         </div>
@@ -145,6 +147,20 @@ export function ServiceCreateForm({ category }: { category: "CORE" | "ADD_ON" })
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+      </div>
+
+      <div className="mt-3 space-y-1.5">
+        <Label htmlFor={`new-duration-${category}`}>Booking slot length (minutes)</Label>
+        <Input
+          id={`new-duration-${category}`}
+          type="number"
+          inputMode="numeric"
+          min="1"
+          value={durationMinutes}
+          onChange={(e) => setDurationMinutes(e.target.value)}
+          className="h-11 sm:max-w-48"
+        />
+        <p className="text-xs text-muted-foreground">Keep at 60 so every drop-off slot lines up. Not shown to customers.</p>
       </div>
 
       <div className="mt-4 space-y-2">

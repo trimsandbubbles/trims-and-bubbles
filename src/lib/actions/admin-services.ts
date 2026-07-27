@@ -24,6 +24,7 @@ const updateServiceSchema = z.object({
   name: z.string().min(1, "Give the service a name"),
   description: z.string().optional(),
   durationMinutes: z.number().int().positive("Duration must be at least 1 minute"),
+  timeEstimate: z.string().max(60, "Keep the time estimate short").optional(),
   active: z.boolean(),
   prices: z.array(priceRowSchema).min(1),
 });
@@ -45,6 +46,7 @@ export async function updateServiceAndPrices(input: z.infer<typeof updateService
         name: d.name,
         description: d.description?.trim() || null,
         durationMinutes: d.durationMinutes,
+        timeEstimate: d.timeEstimate?.trim() || null,
         active: d.active,
       },
     }),
@@ -69,6 +71,7 @@ export async function updateServiceAndPrices(input: z.infer<typeof updateService
 const nameField = z.string().trim().min(1, "Give the service a name").max(80, "That name is too long");
 const descriptionField = z.string().trim().max(1000, "That description is too long").optional();
 const durationField = z.number().int().positive("Duration must be at least 1 minute").max(1440, "That's more than a day");
+const timeEstimateField = z.string().trim().max(60, "Keep the time estimate short").optional();
 
 /** A CORE service is priced per dog size (Small/Medium/Large). A single
  * "quote after meeting the dog" toggle covers the whole service. */
@@ -77,6 +80,7 @@ const createCoreSchema = z.object({
   name: nameField,
   description: descriptionField,
   durationMinutes: durationField,
+  timeEstimate: timeEstimateField,
   isOnInspection: z.boolean().default(false),
   smallCents: z.number().int().min(0).default(0),
   mediumCents: z.number().int().min(0).default(0),
@@ -89,6 +93,7 @@ const createAddOnSchema = z.object({
   name: nameField,
   description: descriptionField,
   durationMinutes: durationField,
+  timeEstimate: timeEstimateField,
   priceCents: z.number().int().min(0).default(0),
 });
 
@@ -164,6 +169,7 @@ export async function createService(input: CreateServiceInput): Promise<ServiceA
         description: d.description?.trim() || null,
         category: d.category,
         durationMinutes: d.durationMinutes,
+        timeEstimate: d.timeEstimate?.trim() || null,
         displayOrder,
         active: true,
         prices: { create: priceRows },

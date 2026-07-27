@@ -4,7 +4,7 @@ import { ContactForm } from "@/components/contact-form";
 import { prisma } from "@/lib/prisma";
 import { getBusinessDetails } from "@/lib/business-data";
 import { getDayModesMap, getFixedSlotsMap } from "@/lib/availability-data";
-import { resolveWeeklyDisplay, formatRangesFriendly } from "@/lib/weekly-hours";
+import { resolveWeeklyDisplay, formatRangesFriendly, mergeAdjacentRanges } from "@/lib/weekly-hours";
 import { EditableText } from "@/components/site-content/editable-text";
 
 export const metadata: Metadata = {
@@ -82,8 +82,10 @@ export default async function ContactPage() {
                   <span className={day.isOpen ? "" : "text-muted-foreground"}>
                     {day.isOpen
                       ? day.mode === "FIXED_SLOTS"
-                        ? formatRangesFriendly(day.ranges)
-                        : day.ranges.map((w) => `${w.startTime} – ${w.endTime}`).join(" & ")
+                        ? formatRangesFriendly(mergeAdjacentRanges(day.ranges))
+                        : mergeAdjacentRanges(day.ranges)
+                            .map((w) => `${w.startTime} – ${w.endTime}`)
+                            .join(" & ")
                       : "Closed"}
                   </span>
                 </div>

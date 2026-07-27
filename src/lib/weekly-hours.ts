@@ -75,6 +75,29 @@ export function resolveWeeklyDisplay(
     });
 }
 
+/**
+ * Collapses ranges that touch or overlap into single spans, so a run of
+ * back-to-back drop-off slots reads as one opening — e.g. 4-5pm & 5-6pm & 6-7pm
+ * & 7-8pm becomes 4pm–8pm. A genuine gap (a lunch break like 9-12 & 3-8) is
+ * preserved as two spans. Purely for display; the underlying bookable slots are
+ * unchanged. Input needn't be pre-sorted.
+ */
+export function mergeAdjacentRanges(ranges: TimeRange[]): TimeRange[] {
+  if (ranges.length === 0) return [];
+  const sorted = [...ranges].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const merged: TimeRange[] = [{ ...sorted[0] }];
+  for (let i = 1; i < sorted.length; i++) {
+    const last = merged[merged.length - 1];
+    // Touch or overlap => extend the current span; otherwise start a new one.
+    if (sorted[i].startTime <= last.endTime) {
+      if (sorted[i].endTime > last.endTime) last.endTime = sorted[i].endTime;
+    } else {
+      merged.push({ ...sorted[i] });
+    }
+  }
+  return merged;
+}
+
 /** Formats a "HH:mm" wall-clock time in the friendly am/pm style used across
  * the customer-facing hours displays, e.g. "9am", "5:30pm". */
 export function fmtTime(hhmm: string): string {

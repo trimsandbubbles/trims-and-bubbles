@@ -24,6 +24,7 @@ export default async function AdminServicesPage() {
     description: s.description,
     category: s.category,
     durationMinutes: s.durationMinutes,
+    timeEstimate: s.timeEstimate,
     active: s.active,
     imageUrl: s.imageUrl,
     prices: s.prices

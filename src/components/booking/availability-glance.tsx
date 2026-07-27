@@ -1,6 +1,7 @@
 import { CalendarClock } from "lucide-react";
 import {
   fmtTime,
+  mergeAdjacentRanges,
   resolveWeeklyDisplay,
   type AvailabilityDisplayMode,
   type TimeRange,
@@ -45,7 +46,9 @@ export function AvailabilityGlance({
               <span className="font-semibold">{DAY_LABELS[d.dayOfWeek]}</span>
               <span className={d.isOpen ? "text-muted-foreground" : "text-muted-foreground/70"}>
                 {d.isOpen
-                  ? d.ranges.map((w) => `${fmtTime(w.startTime)} – ${fmtTime(w.endTime)}`).join(" & ")
+                  ? mergeAdjacentRanges(d.ranges)
+                      .map((w) => `${fmtTime(w.startTime)} – ${fmtTime(w.endTime)}`)
+                      .join(" & ")
                   : "Closed"}
               </span>
             </div>

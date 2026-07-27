@@ -234,7 +234,7 @@ export function DogLineEditor({
                   onClick={() => onChange({ ...line, serviceId: service.id })}
                   title={service.name}
                   description={service.description}
-                  meta={`${service.durationMinutes} min${from !== null ? ` · From ${formatCents(from)}` : ""}`}
+                  meta={from !== null ? `From ${formatCents(from)}` : ""}
                 />
               );
             })}

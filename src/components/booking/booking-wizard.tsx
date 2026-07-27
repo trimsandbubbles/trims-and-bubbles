@@ -224,7 +224,6 @@ export function BookingWizard({
         <span className="font-medium">
           {dogLines.length} {dogLines.length === 1 ? "dog" : "dogs"}
         </span>
-        {totalDurationMinutes > 0 && <span> · {totalDurationMinutes} min</span>}
         {slot && (
           <span>
             {" · "}

@@ -23,6 +23,7 @@ export type ServiceRow = {
   description: string | null;
   category: "CORE" | "ADD_ON";
   durationMinutes: number;
+  timeEstimate: string | null;
   active: boolean;
   imageUrl: string | null;
   prices: ServicePriceRow[];
@@ -33,6 +34,7 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
   const [name, setName] = useState(service.name);
   const [description, setDescription] = useState(service.description ?? "");
   const [durationMinutes, setDurationMinutes] = useState(String(service.durationMinutes));
+  const [timeEstimate, setTimeEstimate] = useState(service.timeEstimate ?? "");
   const [active, setActive] = useState(service.active);
   const [prices, setPrices] = useState(service.prices);
   const [pending, startTransition] = useTransition();
@@ -43,6 +45,7 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
     name !== service.name ||
     description !== (service.description ?? "") ||
     durationMinutes !== String(service.durationMinutes) ||
+    timeEstimate !== (service.timeEstimate ?? "") ||
     active !== service.active ||
     JSON.stringify(prices) !== JSON.stringify(service.prices);
 
@@ -100,6 +103,7 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
             name: name.trim(),
             description: description.trim() || undefined,
             durationMinutes: duration,
+            timeEstimate: timeEstimate.trim(),
             active,
             prices: prices.map((p) => ({ id: p.id, priceCents: p.priceCents, isOnInspection: p.isOnInspection })),
           }),
@@ -131,22 +135,40 @@ export function ServiceEditor({ service }: { service: ServiceRow }) {
           <Input id={`name-${service.id}`} value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`duration-${service.id}`}>How long does it take? (minutes)</Label>
+          <Label htmlFor={`estimate-${service.id}`}>Approximate time (shown to customers)</Label>
           <Input
-            id={`duration-${service.id}`}
-            type="number"
-            inputMode="numeric"
-            min="1"
-            value={durationMinutes}
-            onChange={(e) => setDurationMinutes(e.target.value)}
+            id={`estimate-${service.id}`}
+            value={timeEstimate}
+            onChange={(e) => setTimeEstimate(e.target.value)}
+            placeholder="e.g. Approx. 3 hours"
             className="h-11"
           />
+          <p className="text-xs text-muted-foreground">
+            Appears on your public Services page. Leave blank to show nothing.
+          </p>
         </div>
       </div>
 
       <div className="mt-3 space-y-1.5">
         <Label htmlFor={`desc-${service.id}`}>Description</Label>
         <Textarea id={`desc-${service.id}`} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+
+      <div className="mt-3 space-y-1.5">
+        <Label htmlFor={`duration-${service.id}`}>Booking slot length (minutes)</Label>
+        <Input
+          id={`duration-${service.id}`}
+          type="number"
+          inputMode="numeric"
+          min="1"
+          value={durationMinutes}
+          onChange={(e) => setDurationMinutes(e.target.value)}
+          className="h-11 sm:max-w-48"
+        />
+        <p className="text-xs text-muted-foreground">
+          How much of a drop-off slot this booking takes up. Keep this at 60 so every slot lines up — this isn&apos;t
+          shown to customers.
+        </p>
       </div>
 
       <div className="mt-4 space-y-2">
