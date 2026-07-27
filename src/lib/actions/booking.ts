@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/session";
 import { getBusinessSettings } from "@/lib/services-data";
-import { checkSlotStillOpen, isRequestedSlotBookable, totalDurationMinutes } from "@/lib/availability-data";
+import { checkSlotStillOpen, isRequestedSlotBookable } from "@/lib/availability-data";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
 import { businessConfig } from "@/config/business";
 
@@ -30,7 +30,8 @@ const dogLineSchema = z
         coatType: z.string().max(80).optional(),
       })
       .optional(),
-    serviceId: z.string().min(1),
+    // One or more chosen services for this dog (e.g. Wash & Dry + Nail Clipping).
+    serviceIds: z.array(z.string().min(1)).min(1, "Please pick at least one service for each dog.").max(10),
     addOnServiceIds: z.array(z.string()).default([]),
   })
   .refine((d) => d.petId || d.newDog, { message: "Each dog needs to be chosen or added." });
@@ -134,54 +135,71 @@ export async function createBooking(rawInput: BookingInput): Promise<BookingResu
       return { status: "error", message: "Each dog needs to be chosen or added." };
     }
 
-    const service = await prisma.service.findUnique({
-      where: { id: line.serviceId },
+    // ---- The dog's chosen services (one or more) -----------------------------
+    const uniqueServiceIds = [...new Set(line.serviceIds)];
+    const coreServices = await prisma.service.findMany({
+      where: { id: { in: uniqueServiceIds }, active: true },
       include: { prices: true },
     });
-    if (!service || !service.active) {
+    if (coreServices.length !== uniqueServiceIds.length) {
       return { status: "error", message: "One of the chosen services is no longer available. Please review your dogs." };
     }
-    const priceRow =
-      service.prices.find((p) => p.sizeBand === sizeBand) ?? service.prices.find((p) => p.sizeBand === null);
-    if (!priceRow) {
-      return { status: "error", message: `${service.name} isn't available for a ${sizeBand.toLowerCase()} dog — please get in touch.` };
+    // Price each chosen service for this dog's size.
+    const pricedCores = coreServices.map((s) => ({
+      service: s,
+      row: s.prices.find((p) => p.sizeBand === sizeBand) ?? s.prices.find((p) => p.sizeBand === null),
+    }));
+    const unpriced = pricedCores.find((c) => !c.row);
+    if (unpriced) {
+      return {
+        status: "error",
+        message: `${unpriced.service.name} isn't available for a ${sizeBand.toLowerCase()} dog — please get in touch.`,
+      };
     }
+    // Primary = the first service the customer picked; the rest ride along on the
+    // same appointment as extra items (the dog is dropped off once).
+    const primaryId = line.serviceIds[0];
+    const primary = pricedCores.find((c) => c.service.id === primaryId) ?? pricedCores[0];
+    const extraCores = pricedCores.filter((c) => c.service.id !== primary.service.id);
 
-    // Only genuine add-on services may attach, and never the primary service
-    // itself — otherwise a crafted call could double a price/duration.
+    // Only genuine add-on services may attach, and never a service already chosen
+    // as a core — otherwise a crafted call could double a price.
     const addOnServices = line.addOnServiceIds.length
       ? await prisma.service.findMany({
-          where: { id: { in: line.addOnServiceIds, not: line.serviceId }, active: true, category: "ADD_ON" },
+          where: { id: { in: line.addOnServiceIds, notIn: uniqueServiceIds }, active: true, category: "ADD_ON" },
           include: { prices: true },
         })
       : [];
-    const addOns = addOnServices.map((a) => {
+    const addOnItems = addOnServices.map((a) => {
       const ap = a.prices.find((p) => p.sizeBand === sizeBand) ?? a.prices.find((p) => p.sizeBand === null);
-      return {
-        id: a.id,
-        name: a.name,
-        priceCents: ap && !ap.isOnInspection ? ap.priceCents : 0,
-        durationMinutes: a.durationMinutes,
-      };
+      return { id: a.id, name: a.name, priceCents: ap && !ap.isOnInspection ? ap.priceCents : 0 };
     });
+    // Extra chosen services attach like add-ons on the one appointment.
+    const extraCoreItems = extraCores.map((c) => ({
+      id: c.service.id,
+      name: c.service.name,
+      priceCents: c.row!.isOnInspection ? 0 : c.row!.priceCents,
+    }));
 
-    const durationMinutes = totalDurationMinutes(
-      service.durationMinutes,
-      addOns.map((a) => a.durationMinutes),
-    );
+    // One drop-off slot per dog: the visit is as long as its LONGEST service, not
+    // the sum — the dog stays for the day, so services don't stack up slots.
+    const durationMinutes = Math.max(...coreServices.map((s) => s.durationMinutes));
     const priceCents =
-      (priceRow.isOnInspection ? 0 : priceRow.priceCents) + addOns.reduce((s, a) => s + a.priceCents, 0);
+      (primary.row!.isOnInspection ? 0 : primary.row!.priceCents) +
+      extraCoreItems.reduce((s, i) => s + i.priceCents, 0) +
+      addOnItems.reduce((s, i) => s + i.priceCents, 0);
 
     resolved.push({
       existingPetId,
       newDog,
       petName,
       sizeBand,
-      serviceId: service.id,
-      serviceName: service.name,
+      serviceId: primary.service.id,
+      serviceName: primary.service.name,
       durationMinutes,
       priceCents,
-      addOns: addOns.map((a) => ({ id: a.id, name: a.name, priceCents: a.priceCents })),
+      // Extra services first, then add-ons — recorded as AppointmentAddOn rows.
+      addOns: [...extraCoreItems, ...addOnItems].map((i) => ({ id: i.id, name: i.name, priceCents: i.priceCents })),
     });
   }
 

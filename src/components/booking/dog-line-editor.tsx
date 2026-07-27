@@ -21,7 +21,9 @@ export type DogLineState = {
   newBreed: string;
   newSizeBand: SizeBand;
   newCoatType: string;
-  serviceId: string | null;
+  /** One or more chosen services for this dog. The dog is dropped off once, so
+   * picking several services adds to the price but still takes one slot. */
+  serviceIds: string[];
   addOnIds: string[];
 };
 
@@ -46,14 +48,15 @@ export function lineDogName(line: DogLineState, pets: PetDTO[]): string | null {
   return line.newName.trim() || null;
 }
 
-export function lineDurationMinutes(line: DogLineState, services: ServiceDTO[], addOnServices: ServiceDTO[]): number {
-  const service = services.find((s) => s.id === line.serviceId);
-  if (!service) return 0;
-  const addOnsTotal = line.addOnIds.reduce((sum, id) => {
-    const addOn = addOnServices.find((a) => a.id === id);
-    return sum + (addOn?.durationMinutes ?? 0);
-  }, 0);
-  return service.durationMinutes + addOnsTotal;
+export function lineDurationMinutes(line: DogLineState, services: ServiceDTO[], _addOnServices: ServiceDTO[]): number {
+  // One drop-off slot per dog: the visit is as long as its LONGEST service, not
+  // the sum. The dog stays for the day and several services happen across it, so
+  // combining services never stacks up extra drop-off slots. Add-ons are 0-min.
+  const chosen = line.serviceIds
+    .map((id) => services.find((s) => s.id === id))
+    .filter((s): s is ServiceDTO => !!s);
+  if (chosen.length === 0) return 0;
+  return Math.max(...chosen.map((s) => s.durationMinutes));
 }
 
 export function linePriceCents(
@@ -62,24 +65,31 @@ export function linePriceCents(
   addOnServices: ServiceDTO[],
   pets: PetDTO[],
 ): { cents: number; isOnInspection: boolean } {
-  const service = services.find((s) => s.id === line.serviceId);
   const sizeBand = lineSizeBand(line, pets);
-  if (!service || !sizeBand) return { cents: 0, isOnInspection: false };
-  const row = priceRowFor(service, sizeBand);
-  const isOnInspection = row?.isOnInspection ?? false;
-  const serviceCents = row && !row.isOnInspection ? row.priceCents : 0;
+  if (line.serviceIds.length === 0 || !sizeBand) return { cents: 0, isOnInspection: false };
+
+  // Sum every chosen service, plus any add-ons. A service priced "on inspection"
+  // contributes 0 and flags the whole line so the UI shows "+ priced on inspection".
+  let isOnInspection = false;
+  const servicesCents = line.serviceIds.reduce((sum, id) => {
+    const service = services.find((s) => s.id === id);
+    if (!service) return sum;
+    const row = priceRowFor(service, sizeBand);
+    if (row?.isOnInspection) isOnInspection = true;
+    return sum + (row && !row.isOnInspection ? row.priceCents : 0);
+  }, 0);
   const addOnsCents = line.addOnIds.reduce((sum, id) => {
     const addOn = addOnServices.find((a) => a.id === id);
     if (!addOn) return sum;
     const addOnRow = priceRowFor(addOn, sizeBand);
     return sum + (addOnRow && !addOnRow.isOnInspection ? addOnRow.priceCents : 0);
   }, 0);
-  return { cents: serviceCents + addOnsCents, isOnInspection };
+  return { cents: servicesCents + addOnsCents, isOnInspection };
 }
 
 export function lineIsComplete(line: DogLineState): boolean {
   const dogChosen = line.mode === "existing" ? !!line.petId : true; // size always has a default
-  return dogChosen && !!line.serviceId;
+  return dogChosen && line.serviceIds.length > 0;
 }
 
 /** Editor for a single dog within a multi-dog booking: pick a saved dog or
@@ -109,9 +119,18 @@ export function DogLineEditor({
 }) {
   const availablePets = pets.filter((p) => p.id === line.petId || !otherSelectedPetIds.has(p.id));
   const sizeBand = lineSizeBand(line, pets);
-  const selectedService = services.find((s) => s.id === line.serviceId) ?? null;
+  const hasService = line.serviceIds.length > 0;
   const { cents: lineCents, isOnInspection } = linePriceCents(line, services, addOnServices, pets);
   const idPrefix = `dog-${line.id}`;
+
+  function toggleService(serviceId: string) {
+    onChange({
+      ...line,
+      serviceIds: line.serviceIds.includes(serviceId)
+        ? line.serviceIds.filter((x) => x !== serviceId)
+        : [...line.serviceIds, serviceId],
+    });
+  }
 
   function toggleAddOn(addOnId: string) {
     onChange({
@@ -223,15 +242,16 @@ export function DogLineEditor({
         )}
 
         <div className="space-y-1.5">
-          <Label>Service</Label>
+          <Label>Services</Label>
+          <p className="text-xs text-muted-foreground">Pick one or more — they&apos;re done in the same visit.</p>
           <div className="space-y-2.5">
             {services.map((service) => {
               const from = fromPriceCents(service);
               return (
                 <SelectableCard
                   key={service.id}
-                  selected={line.serviceId === service.id}
-                  onClick={() => onChange({ ...line, serviceId: service.id })}
+                  selected={line.serviceIds.includes(service.id)}
+                  onClick={() => toggleService(service.id)}
                   title={service.name}
                   description={service.description}
                   meta={from !== null ? `From ${formatCents(from)}` : ""}
@@ -241,7 +261,7 @@ export function DogLineEditor({
           </div>
         </div>
 
-        {selectedService && addOnServices.length > 0 && (
+        {hasService && addOnServices.length > 0 && (
           <div className="space-y-1.5">
             <Label>Add-ons (optional)</Label>
             <div className="space-y-2.5">
@@ -270,9 +290,10 @@ export function DogLineEditor({
           </div>
         )}
 
-        {selectedService && sizeBand && (
+        {hasService && sizeBand && (
           <p className="text-sm font-medium">
-            {lineDogName(line, pets) ?? "This dog"}&apos;s total: {isOnInspection ? "Priced on inspection" : formatCents(lineCents)}
+            {lineDogName(line, pets) ?? "This dog"}&apos;s total:{" "}
+            {isOnInspection ? `${formatCents(lineCents)} + priced on inspection` : formatCents(lineCents)}
           </p>
         )}
       </div>

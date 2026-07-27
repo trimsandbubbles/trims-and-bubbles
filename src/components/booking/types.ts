@@ -27,7 +27,7 @@ export type PetDTO = {
  * One dog within a multi-dog booking, as the wizard builds it and as
  * `createBooking` expects each entry of its `dogs` array. Either `petId`
  * (an existing saved dog) OR `newDog` (a quick-added dog — size required,
- * everything else optional) must be set. Each dog carries its own service
+ * everything else optional) must be set. Each dog carries one or more services
  * and any add-ons.
  */
 export type NewDogInput = {
@@ -40,7 +40,9 @@ export type NewDogInput = {
 export type BookingDogLine = {
   petId?: string;
   newDog?: NewDogInput;
-  serviceId: string;
+  /** One or more chosen services for this dog (e.g. Wash & Dry + Nail Clipping).
+   * The dog is dropped off once, so several services still take one slot. */
+  serviceIds: string[];
   addOnServiceIds: string[];
 };
 

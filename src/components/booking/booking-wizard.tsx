@@ -61,7 +61,7 @@ function createDogLine(id: string, pets: PetDTO[], usedPetIds: Set<string>): Dog
     newBreed: "",
     newSizeBand: "MEDIUM",
     newCoatType: "",
-    serviceId: null,
+    serviceIds: [],
     addOnIds: [],
   };
 }
@@ -151,7 +151,7 @@ export function BookingWizard({
 
     const dogs: BookingDogLine[] = dogLines.map((line) => {
       if (line.mode === "existing" && line.petId) {
-        return { petId: line.petId, serviceId: line.serviceId!, addOnServiceIds: line.addOnIds };
+        return { petId: line.petId, serviceIds: line.serviceIds, addOnServiceIds: line.addOnIds };
       }
       return {
         newDog: {
@@ -160,7 +160,7 @@ export function BookingWizard({
           sizeBand: line.newSizeBand,
           coatType: line.newCoatType.trim() || undefined,
         },
-        serviceId: line.serviceId!,
+        serviceIds: line.serviceIds,
         addOnServiceIds: line.addOnIds,
       };
     });
@@ -317,7 +317,9 @@ export function BookingWizard({
               <dl className="mt-2 space-y-2 text-muted-foreground">
                 {lineResults.map(({ line, cents, isOnInspection }) => {
                   const sizeBand = lineSizeBand(line, pets);
-                  const service = services.find((s) => s.id === line.serviceId);
+                  const serviceNames = line.serviceIds
+                    .map((id) => services.find((s) => s.id === id)?.name)
+                    .filter((n): n is string => !!n);
                   const addOnNames = addOnServices.filter((a) => line.addOnIds.includes(a.id)).map((a) => a.name);
                   return (
                     <div key={line.id} className="flex justify-between gap-3">
@@ -325,8 +327,7 @@ export function BookingWizard({
                         {lineDogName(line, pets) ?? "Dog"} ({sizeBand ? SIZE_BAND_LABELS[sizeBand] : "—"})
                         <br />
                         <span className="text-xs">
-                          {service?.name}
-                          {addOnNames.length > 0 ? ` + ${addOnNames.join(", ")}` : ""}
+                          {[...serviceNames, ...addOnNames].join(" + ")}
                         </span>
                       </dt>
                       <dd className="shrink-0">{isOnInspection ? "On inspection" : formatCents(cents)}</dd>
