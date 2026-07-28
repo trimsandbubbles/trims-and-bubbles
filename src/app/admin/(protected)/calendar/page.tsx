@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { CalendarPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getDayModesMap, getFixedSlotsMap } from "@/lib/availability-data";
+import { Button } from "@/components/ui/button";
 import { AdminCalendar, type CalendarEventDTO } from "@/components/admin/admin-calendar";
 
 export const metadata: Metadata = { title: "Calendar | Admin" };
@@ -107,8 +110,15 @@ export default async function AdminCalendarPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
-      <p className="mt-1 text-muted-foreground">Every upcoming appointment and blocked-off time in one view.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
+          <p className="mt-1 text-muted-foreground">Every upcoming appointment and blocked-off time in one view.</p>
+        </div>
+        <Button render={<Link href="/admin/bookings/new" />}>
+          <CalendarPlus className="h-4 w-4" /> Add booking
+        </Button>
+      </div>
       <div className="mt-6">
         <AdminCalendar
           events={events}
