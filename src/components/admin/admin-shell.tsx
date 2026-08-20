@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, CalendarPlus, LayoutDashboard, LogOut, Menu, Settings, Users, Clock, Receipt, Tag, ShoppingBag, Package, Image as ImageIcon, Share2, Star, ExternalLink } from "lucide-react";
+import { CalendarDays, CalendarPlus, LayoutDashboard, LogOut, Menu, Settings, Users, Clock, Receipt, Tag, ShoppingBag, Package, Image as ImageIcon, Share2, Star, Calculator, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { signOut } from "@/lib/auth-client";
@@ -20,6 +20,7 @@ const NAV_LINKS = [
   { href: "/admin/gallery", label: "Gallery", icon: ImageIcon },
   { href: "/admin/reviews", label: "Reviews", icon: Star, ownerOnly: true },
   { href: "/admin/payments", label: "Payments", icon: Receipt },
+  { href: "/admin/bookkeeping", label: "Bookkeeping", icon: Calculator, ownerOnly: true },
   { href: "/admin/orders", label: "Store Orders", icon: ShoppingBag },
   { href: "/admin/settings", label: "Settings", icon: Settings, ownerOnly: true },
   { href: "/admin/social", label: "Social media", icon: Share2, ownerOnly: true },
