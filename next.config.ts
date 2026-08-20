@@ -36,6 +36,19 @@ const cspHeader = `
 const nextConfig: NextConfig = {
   // Don't advertise the framework/version.
   poweredByHeader: false,
+  // `sharp` (used to re-encode uploaded photos in src/lib/uploads.ts) is a native
+  // module. Mark it external so it's loaded from node_modules at runtime rather
+  // than bundled...
+  serverExternalPackages: ["sharp"],
+  // ...and FORCE its native binaries (@img/*, incl. the linux libvips .so) into
+  // every serverless function's file trace. Without this, the Turbopack build's
+  // tracer leaves the .so out and every photo upload fails at runtime with
+  // "Could not load the sharp module … libvips-cpp.so: cannot open shared object
+  // file". The glob is resolved on the BUILD machine (linux on Vercel), so it
+  // picks up the correct platform binaries there.
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@img/**", "./node_modules/sharp/**"],
+  },
   images: {
     // Allow next/image to optimize photos served from Vercel Blob storage in
     // production. Local-disk uploads (dev) are same-origin and need no entry.
