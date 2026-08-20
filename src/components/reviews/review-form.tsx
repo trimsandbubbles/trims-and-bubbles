@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ImagePlus, X } from "lucide-react";
+import { CheckCircle2, ImagePlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,8 +25,10 @@ export function ReviewForm({
   const [displayName, setDisplayName] = useState(initial?.displayName ?? "");
   const [keptPhotos, setKeptPhotos] = useState<string[]>(initial?.photoUrls ?? []);
   const [newPhotos, setNewPhotos] = useState<NewPhoto[]>([]);
+  const [posted, setPosted] = useState(false);
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   const totalPhotos = keptPhotos.length + newPhotos.length;
 
@@ -72,11 +76,15 @@ export function ReviewForm({
     startTransition(async () => {
       const result = await submitReview(fd);
       if (result.status === "success") {
-        toast.success(initial ? "Your review was updated — thank you!" : "Thank you for your review!");
+        toast.success(initial ? "Your review was updated — it's live now!" : "Your review is now live on our website!");
         // Adopt the server's saved photo list and drop the local previews.
         newPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
         setNewPhotos([]);
         setKeptPhotos(result.photoUrls);
+        setPosted(true);
+        // Refresh so the "Your review is live" card (server-rendered) appears
+        // straight away, even for a brand-new first review.
+        router.refresh();
       } else {
         toast.error(result.message);
       }
@@ -85,6 +93,19 @@ export function ReviewForm({
 
   return (
     <div className="space-y-5">
+      {posted && (
+        <div className="flex items-start gap-3 rounded-xl border border-primary/40 bg-primary/5 p-3 text-sm">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <p>
+            <span className="font-medium">Your review is live on our website</span> — it posts straight away, no
+            approval needed.{" "}
+            <Link href="/reviews" className="underline hover:text-foreground">
+              See it on the reviews page
+            </Link>
+            .
+          </p>
+        </div>
+      )}
       <div>
         <label className="mb-2 block text-sm font-medium">Your rating</label>
         <StarRatingInput value={rating} onChange={setRating} disabled={pending} />
