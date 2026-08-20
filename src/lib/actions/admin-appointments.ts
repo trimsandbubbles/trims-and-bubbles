@@ -8,6 +8,7 @@ import type { ActionResult } from "@/lib/actions/pets";
 import { validateAndProcessImage, saveImage } from "@/lib/uploads";
 import { isRequestedSlotBookable, totalDurationMinutes } from "@/lib/availability-data";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
+import { getOwnerEmail } from "@/lib/owner-email";
 
 /** A single appointment's Sydney date + time, e.g. "Tuesday, 15 July 2026 at 2:00 pm". */
 const APPT_DATETIME_FMT = new Intl.DateTimeFormat("en-AU", {
@@ -224,6 +225,7 @@ async function sendCancellationEmail(
       : `Your Trims & Bubbles appointment on ${when} was cancelled`,
     html: emailLayout(body),
     text: `Hi ${apt.client.user.name}, your booking on ${when} has been cancelled (${listText}).${apt.cancelReason ? ` Reason: ${apt.cancelReason}.` : ""} You're welcome to book a new spot whenever suits you. — Trims & Bubbles`,
+    replyTo: await getOwnerEmail(),
   });
 }
 
@@ -318,6 +320,7 @@ async function sendRescheduleEmail(apt: Omit<AppointmentForEmail, "cancelReason"
     subject: `Your Trims & Bubbles appointment has moved to ${when}`,
     html: emailLayout(body),
     text: `Hi ${apt.client.user.name}, your ${apt.primaryService.name} appointment for ${apt.pet.name} has been rescheduled to ${when}. If that doesn't work, please get in touch. — Trims & Bubbles`,
+    replyTo: await getOwnerEmail(),
   });
 }
 

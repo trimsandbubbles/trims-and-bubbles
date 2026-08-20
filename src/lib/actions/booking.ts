@@ -8,7 +8,7 @@ import { requireSession } from "@/lib/session";
 import { getBusinessSettings } from "@/lib/services-data";
 import { checkSlotStillOpen, isRequestedSlotBookable } from "@/lib/availability-data";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
-import { businessConfig } from "@/config/business";
+import { resolveOwnerEmail } from "@/lib/owner-email";
 
 /** One groomer can't realistically do more than this in a single visit; more
  * than that, ask them to call so it can be spread across days. */
@@ -315,16 +315,6 @@ const BOOKING_DATETIME_FMT = new Intl.DateTimeFormat("en-AU", {
   minute: "2-digit",
 });
 
-/**
- * Owner address resolution order:
- *   BusinessSettings.contactEmail  (owner-editable, DB singleton)
- *     ?? OWNER_NOTIFICATION_EMAIL   (env override)
- *     ?? businessConfig.contact.email (code default of last resort).
- */
-function resolveOwnerEmail(settingsContactEmail: string | null | undefined): string {
-  return settingsContactEmail || process.env.OWNER_NOTIFICATION_EMAIL || businessConfig.contact.email;
-}
-
 type BookingDogLine = { petName: string; serviceName: string; addOnNames: string[] };
 
 type NewBookingNotification = {
@@ -393,6 +383,8 @@ async function notifyNewBooking(n: NewBookingNotification): Promise<void> {
     subject: `You're booked in — ${when}`,
     html: emailLayout(customerBody),
     text: `Hi ${n.customerName}, thanks for booking with Trims & Bubbles! ${when}. ${listText}.${addressText} Payment in person (cash). See you soon!`,
+    // Replies go to the owner's monitored inbox (the from-domain can't receive).
+    replyTo: resolveOwnerEmail(n.ownerEmail),
   });
 }
 

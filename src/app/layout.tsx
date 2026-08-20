@@ -25,13 +25,32 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_DESCRIPTION =
+  "Professional dog washing, grooming and trimming — full grooms, wash & dry, deshedding, nail care, and pickup/drop-off.";
+
 export const metadata: Metadata = {
+  // Absolute base for OpenGraph/icon URLs (so link previews + Google resolve the
+  // logo correctly). The favicon, apple-icon and opengraph image are picked up
+  // automatically from the matching files in this app/ folder.
+  metadataBase: new URL("https://trimsandbubbles.com.au"),
   title: {
     default: "Trims and Bubbles | Dog Grooming",
     template: "%s | Trims and Bubbles",
   },
-  description:
-    "Professional dog washing, grooming and trimming — full grooms, wash & dry, deshedding, nail care, and pickup/drop-off.",
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: "Trims and Bubbles | Dog Grooming",
+    description: SITE_DESCRIPTION,
+    siteName: "Trims and Bubbles",
+    url: "https://trimsandbubbles.com.au",
+    locale: "en_AU",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Trims and Bubbles | Dog Grooming",
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireStaffOrOwner } from "@/lib/session";
 import { checkSlotStillOpen } from "@/lib/availability-data";
 import { getBusinessSettings } from "@/lib/services-data";
+import { resolveOwnerEmail } from "@/lib/owner-email";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
 
 /**
@@ -256,6 +257,7 @@ export async function createManualBooking(rawInput: ManualBookingInput): Promise
       serviceNames,
       startAt,
       bookingAddress: settings.bookingAddress || null,
+      replyTo: resolveOwnerEmail(settings.contactEmail),
     });
   }
 
@@ -279,6 +281,7 @@ async function sendManualBookingEmail(n: {
   serviceNames: string[];
   startAt: Date;
   bookingAddress: string | null;
+  replyTo: string;
 }): Promise<void> {
   const when = WHEN_FMT.format(n.startAt);
   const services = n.serviceNames.join(" + ");
@@ -300,5 +303,6 @@ async function sendManualBookingEmail(n: {
     subject: `You're booked in — ${when}`,
     html: emailLayout(body),
     text: `Hi ${n.customerName}, your Trims & Bubbles booking is confirmed for ${when}. ${n.petName}: ${services}.${addressText} Payment in person (cash). See you soon!`,
+    replyTo: n.replyTo,
   });
 }

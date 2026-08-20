@@ -308,6 +308,9 @@ model Appointment {
   pickupAddress     String?
   cancelledAt       DateTime?          @db.Timestamptz(3)
   cancelReason      String?
+  // When the "your appointment is in 2 days" reminder was sent, so the daily
+  // cron never emails the same booking twice. Null = not yet reminded.
+  reminderSentAt    DateTime?          @db.Timestamptz(3)
   // Non-null when this appointment is one dog within a single multi-dog
   // booking; all sibling appointments (created back-to-back for the one
   // groomer) share the same id so admin/portal can show them as one booking.
