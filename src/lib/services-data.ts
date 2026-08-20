@@ -26,6 +26,8 @@ export async function getBusinessSettings() {
       socials: null,
       bufferMinutes: 15,
       bookingAddress: null,
+      googleReviewUrl: null,
+      rebookWeeks: 6,
       updatedAt: new Date(),
     }
   );

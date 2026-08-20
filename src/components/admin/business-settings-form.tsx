@@ -16,6 +16,8 @@ export function BusinessSettingsForm({
     contactEmail: string | null;
     depositPercentage: number;
     bufferMinutes: number;
+    rebookWeeks: number;
+    googleReviewUrl: string | null;
     fullAddress: string | null;
     bookingAddress: string | null;
     serviceAreaNote: string | null;
@@ -27,6 +29,8 @@ export function BusinessSettingsForm({
   const [contactPhone, setContactPhone] = useState(initial.contactPhone ?? "");
   const [contactEmail, setContactEmail] = useState(initial.contactEmail ?? "");
   const [depositPercentage, setDepositPercentage] = useState(String(initial.depositPercentage));
+  const [rebookWeeks, setRebookWeeks] = useState(String(initial.rebookWeeks));
+  const [googleReviewUrl, setGoogleReviewUrl] = useState(initial.googleReviewUrl ?? "");
   const [fullAddress, setFullAddress] = useState(initial.fullAddress ?? "");
   const [bookingAddress, setBookingAddress] = useState(initial.bookingAddress ?? "");
   const [serviceAreaNote, setServiceAreaNote] = useState(initial.serviceAreaNote ?? "");
@@ -44,6 +48,8 @@ export function BusinessSettingsForm({
             contactPhone: contactPhone || undefined,
             contactEmail: contactEmail || undefined,
             depositPercentage: Number(depositPercentage),
+            rebookWeeks: Number(rebookWeeks),
+            googleReviewUrl: googleReviewUrl || undefined,
             fullAddress: fullAddress || undefined,
             bookingAddress: bookingAddress || undefined,
             serviceAreaNote: serviceAreaNote || undefined,
@@ -84,6 +90,42 @@ export function BusinessSettingsForm({
         />
         <p className="text-xs text-muted-foreground">Charged upfront when a client books, taken off the total at the end.</p>
         <p className="text-xs text-muted-foreground">Set to 0 if you don&apos;t want to take deposits — clients will book without paying anything upfront.</p>
+      </div>
+
+      <div className="border-t border-border pt-4">
+        <h2 className="text-sm font-semibold">Reviews &amp; repeat business</h2>
+        <div className="mt-3 space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="google-review-url">Google review link (optional)</Label>
+            <Input
+              id="google-review-url"
+              type="url"
+              value={googleReviewUrl}
+              onChange={(e) => setGoogleReviewUrl(e.target.value)}
+              placeholder="https://g.page/r/…/review"
+            />
+            <p className="text-xs text-muted-foreground">
+              Paste your Google &ldquo;write a review&rdquo; link (from your Google Business Profile). When set, customers
+              see a &ldquo;Leave a Google review&rdquo; button. Leave blank to hide it.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rebook-weeks">Rebooking reminder (weeks after a groom)</Label>
+            <Input
+              id="rebook-weeks"
+              type="number"
+              min="0"
+              max="52"
+              value={rebookWeeks}
+              onChange={(e) => setRebookWeeks(e.target.value)}
+              className="sm:max-w-32"
+            />
+            <p className="text-xs text-muted-foreground">
+              Emails a gentle &ldquo;time for their next groom?&rdquo; reminder this many weeks after a completed visit (if
+              they haven&apos;t already rebooked). Set to 0 to turn it off.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="border-t border-border pt-4">

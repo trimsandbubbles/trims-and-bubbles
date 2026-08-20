@@ -4,17 +4,23 @@ import { CheckCircle2, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { getBusinessDetails } from "@/lib/business-data";
 import { ReviewForm } from "@/components/reviews/review-form";
 import { StarRating } from "@/components/reviews/star-rating";
+import { GoogleReviewButton } from "@/components/reviews/google-review-button";
 
 export const metadata: Metadata = { title: "Leave a Review" };
 
 export default async function PortalReviewPage() {
   const session = await getCurrentSession();
-  const client = await prisma.client.findUnique({ where: { userId: session!.user.id } });
+  const [client, business] = await Promise.all([
+    prisma.client.findUnique({ where: { userId: session!.user.id } }),
+    getBusinessDetails(),
+  ]);
   const review = client ? await prisma.review.findUnique({ where: { clientId: client.id } }) : null;
   // Reviews publish immediately; "not live" now only means the owner has hidden it.
   const isLive = !!review && !review.hidden;
+  const googleReviewUrl = business.googleReviewUrl;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
@@ -58,9 +64,22 @@ export default async function PortalReviewPage() {
         </Card>
       )}
 
+      {googleReviewUrl && (
+        <Card className="mt-6 border-primary/30 bg-secondary/50">
+          <CardContent className="flex flex-col items-start gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Loved your groom? A quick <span className="font-medium text-foreground">Google review</span> helps other
+              local dog owners find us the most. 🐾
+            </p>
+            <GoogleReviewButton url={googleReviewUrl} className="shrink-0" />
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="mt-6">
         <CardContent className="py-6">
           <ReviewForm
+            googleReviewUrl={googleReviewUrl}
             initial={
               review
                 ? {

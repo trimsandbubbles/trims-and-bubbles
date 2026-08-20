@@ -26,6 +26,8 @@ export default async function AdminSettingsPage() {
             contactEmail: settings.contactEmail,
             depositPercentage: settings.depositPercentage,
             bufferMinutes: settings.bufferMinutes,
+            rebookWeeks: raw.rebookWeeks,
+            googleReviewUrl: raw.googleReviewUrl ?? null,
             fullAddress: settings.fullAddress,
             bookingAddress: raw.bookingAddress ?? null,
             serviceAreaNote: settings.serviceAreaNote,

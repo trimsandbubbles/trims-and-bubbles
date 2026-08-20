@@ -311,6 +311,9 @@ model Appointment {
   // When the "your appointment is in 2 days" reminder was sent, so the daily
   // cron never emails the same booking twice. Null = not yet reminded.
   reminderSentAt    DateTime?          @db.Timestamptz(3)
+  // When the "time for a re-groom?" nudge was sent for this completed visit, so
+  // the daily cron never nudges the same visit twice. Null = not yet nudged.
+  rebookNudgeSentAt DateTime?          @db.Timestamptz(3)
   // Non-null when this appointment is one dog within a single multi-dog
   // booking; all sibling appointments (created back-to-back for the one
   // groomer) share the same id so admin/portal can show them as one booking.
@@ -460,6 +463,12 @@ model BusinessSettings {
   // (on the confirmation screen + email) — deliberately NOT public like
   // fullAddress, since the salon runs from a private home.
   bookingAddress       String?
+  // Owner's Google review link (from their Google Business Profile). When set, a
+  // "leave a Google review" button is shown to customers.
+  googleReviewUrl      String?
+  // Weeks after a completed groom to email a gentle "time for a re-groom?" nudge.
+  // 0 turns the rebooking reminder off.
+  rebookWeeks          Int      @default(6)
   serviceAreaNote      String?
   credentialTitle      String?
   credentialInstitution String?

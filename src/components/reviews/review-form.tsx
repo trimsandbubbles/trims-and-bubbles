@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StarRatingInput } from "@/components/reviews/star-rating-input";
+import { GoogleReviewButton } from "@/components/reviews/google-review-button";
 import { runAction } from "@/lib/run-action";
 import { submitReview } from "@/lib/actions/reviews";
 
@@ -18,8 +19,10 @@ type NewPhoto = { file: File; preview: string };
 
 export function ReviewForm({
   initial,
+  googleReviewUrl,
 }: {
   initial: { rating: number; body: string; displayName: string; photoUrls: string[] } | null;
+  googleReviewUrl?: string | null;
 }) {
   const [rating, setRating] = useState(initial?.rating ?? 0);
   const [body, setBody] = useState(initial?.body ?? "");
@@ -99,14 +102,24 @@ export function ReviewForm({
       {posted && (
         <div className="flex items-start gap-3 rounded-xl border border-primary/40 bg-primary/5 p-3 text-sm">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <p>
-            <span className="font-medium">Your review is live on our website</span> — it posts straight away, no
-            approval needed.{" "}
-            <Link href="/reviews" className="underline hover:text-foreground">
-              See it on the reviews page
-            </Link>
-            .
-          </p>
+          <div className="space-y-2">
+            <p>
+              <span className="font-medium">Your review is live on our website</span> — it posts straight away, no
+              approval needed.{" "}
+              <Link href="/reviews" className="underline hover:text-foreground">
+                See it on the reviews page
+              </Link>
+              .
+            </p>
+            {googleReviewUrl && (
+              <p className="text-muted-foreground">
+                Would you share it on Google too? It helps other local dog owners find us the most.
+                <span className="mt-2 block">
+                  <GoogleReviewButton url={googleReviewUrl} variant="outline" />
+                </span>
+              </p>
+            )}
+          </div>
         </div>
       )}
       <div>

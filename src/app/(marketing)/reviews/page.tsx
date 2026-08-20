@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EditableText } from "@/components/site-content/editable-text";
 import { StarRating } from "@/components/reviews/star-rating";
+import { GoogleReviewButton } from "@/components/reviews/google-review-button";
 import { getCurrentSession } from "@/lib/session";
+import { getBusinessDetails } from "@/lib/business-data";
 
 export const metadata: Metadata = {
   title: "Customer Reviews",
@@ -23,14 +25,16 @@ function displayName(fullName: string) {
 }
 
 export default async function ReviewsPage() {
-  const [reviews, session] = await Promise.all([
+  const [reviews, session, business] = await Promise.all([
     prisma.review.findMany({
       where: { approved: true, hidden: false },
       orderBy: { createdAt: "desc" },
       include: { client: { include: { user: true } } },
     }),
     getCurrentSession(),
+    getBusinessDetails(),
   ]);
+  const googleReviewUrl = business.googleReviewUrl;
 
   const count = reviews.length;
   const average = count ? reviews.reduce((sum, r) => sum + r.rating, 0) / count : 0;
@@ -82,6 +86,13 @@ export default async function ReviewsPage() {
           </div>
         )}
       </div>
+
+      {googleReviewUrl && (
+        <div className="mt-4 flex flex-col items-center gap-2 text-center">
+          <p className="text-xs text-muted-foreground">Prefer Google? A review there helps us the most.</p>
+          <GoogleReviewButton url={googleReviewUrl} variant="outline" />
+        </div>
+      )}
 
       <div className="mt-12 space-y-4">
         {count === 0 ? (

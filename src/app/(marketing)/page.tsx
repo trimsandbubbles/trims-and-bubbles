@@ -9,6 +9,7 @@ import { businessConfig } from "@/config/business";
 import { getBusinessDetails } from "@/lib/business-data";
 import { EditableText } from "@/components/site-content/editable-text";
 import { EditableImage } from "@/components/site-content/editable-image";
+import { LocalBusinessJsonLd } from "@/components/seo/local-business-jsonld";
 
 const SERVICE_ICONS: Record<string, React.ElementType> = {
   "full-groom": Scissors,
@@ -50,6 +51,7 @@ export default async function HomePage() {
 
   return (
     <div>
+      <LocalBusinessJsonLd />
       {/* ---------------- Hero ---------------- */}
       <section className="relative overflow-hidden border-b border-border">
         <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-28">

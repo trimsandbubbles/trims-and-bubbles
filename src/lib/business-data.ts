@@ -18,6 +18,7 @@ export type BusinessDetails = {
   facebookUrl: string;
   tiktokUrl: string;
   youtubeUrl: string;
+  googleReviewUrl: string;
   depositPercentage: number;
   bufferMinutes: number;
   // One-time setup, not owner-editable from Settings — always from config.
@@ -54,6 +55,8 @@ async function loadSettings() {
       facebookUrl: null,
       tiktokUrl: null,
       youtubeUrl: null,
+      googleReviewUrl: null,
+      rebookWeeks: 6,
       updatedAt: new Date(),
     }
   );
@@ -74,9 +77,10 @@ export async function getBusinessDetails(): Promise<BusinessDetails> {
     credentialInstitution: withFallback(settings.credentialInstitution, businessConfig.credentials.issuingInstitution),
     instagramUrl: withFallback(settings.instagramUrl, businessConfig.contact.instagram),
     facebookUrl: withFallback(settings.facebookUrl, businessConfig.contact.facebook),
-    // No config fallback exists for these two — blank means "not set".
+    // No config fallback exists for these — blank means "not set".
     tiktokUrl: withFallback(settings.tiktokUrl, ""),
     youtubeUrl: withFallback(settings.youtubeUrl, ""),
+    googleReviewUrl: withFallback(settings.googleReviewUrl, ""),
     depositPercentage: settings.depositPercentage,
     bufferMinutes: settings.bufferMinutes,
     legalName: businessConfig.legalName,

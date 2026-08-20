@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarDays, Clock, Dog, PawPrint } from "lucide-react";
+import { CalendarDays, Clock, Dog, PawPrint, Phone, MessageSquare, StickyNote } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppointmentStatusBadge } from "@/components/status-badge";
 import { prisma } from "@/lib/prisma";
 import { sydneyCalendarDayRange } from "@/lib/availability-data";
-import { formatCents } from "@/lib/format";
+import { formatCents, SIZE_BAND_LABELS } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Today | Admin" };
 
@@ -56,21 +57,42 @@ export default async function AdminTodayPage() {
                   {timeFmt.format(apt.startAt)} – {timeFmt.format(apt.endAt)}
                 </p>
                 <p className="flex items-center gap-2 text-muted-foreground">
-                  <Dog className="h-4 w-4 shrink-0" /> {apt.pet.name} ({apt.pet.breed ?? "mixed breed"})
+                  <Dog className="h-4 w-4 shrink-0" /> {apt.pet.name} · {SIZE_BAND_LABELS[apt.sizeBandAtBooking]}
+                  {apt.pet.breed ? ` · ${apt.pet.breed}` : ""}
                 </p>
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <PawPrint className="h-4 w-4 shrink-0" /> {apt.client.user.name}
                 </p>
                 {apt.addOns.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    + {apt.addOns.map((a) => a.service.name).join(", ")}
-                  </p>
+                  <p className="text-xs text-muted-foreground">+ {apt.addOns.map((a) => a.service.name).join(", ")}</p>
                 )}
                 {apt.pickupRequested && (
                   <Badge variant="outline" className="text-xs">
                     Pickup &amp; drop-off
                   </Badge>
                 )}
+                {(apt.notesFromClient || apt.pet.temperamentNotes) && (
+                  <div className="flex items-start gap-2 rounded-lg bg-muted/60 p-2 text-xs text-muted-foreground">
+                    <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {apt.pet.temperamentNotes && <span className="block">{apt.pet.temperamentNotes}</span>}
+                      {apt.notesFromClient && <span className="block">&ldquo;{apt.notesFromClient}&rdquo;</span>}
+                    </span>
+                  </div>
+                )}
+
+                {/* Tap-to-call / text — the fastest way to reach the owner about today's dog. */}
+                {apt.client.phone && (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" render={<a href={`tel:${apt.client.phone}`} />}>
+                      <Phone className="h-3.5 w-3.5" /> Call
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1" render={<a href={`sms:${apt.client.phone}`} />}>
+                      <MessageSquare className="h-3.5 w-3.5" /> Text
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between border-t border-border pt-2">
                   <span className="text-muted-foreground">{formatCents(apt.totalPriceCents)}</span>
                   <Link href={`/admin/appointments/${apt.id}`} className="font-medium text-primary underline underline-offset-4">
