@@ -3,6 +3,8 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { admin as adminPlugin } from "better-auth/plugins";
 import { prisma } from "@/lib/prisma";
 import { ac, owner, staff, client } from "@/lib/permissions";
+import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
+import { getOwnerEmail } from "@/lib/owner-email";
 
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
@@ -51,6 +53,29 @@ export const auth = betterAuth({
     // Keep it simple for a small local grooming business — no email verification
     // step required to book/log in. Revisit before real launch if desired.
     requireEmailVerification: false,
+    // Forgot-password flow: Better Auth generates a one-time reset link (valid ~1
+    // hour) and calls this to deliver it. The link routes through Better Auth's
+    // own /api/auth/reset-password/:token endpoint, which validates the token and
+    // then redirects to our /reset-password page. Fail-soft: sendEmail never
+    // throws, so a slow send can't break the request.
+    sendResetPassword: async ({ user, url }) => {
+      const body = `
+        <p style="margin:0 0 12px;">Hi ${escapeHtml(user.name)},</p>
+        <p style="margin:0 0 12px;">We got a request to reset your Trims &amp; Bubbles password. Tap the button to choose a new one:</p>
+        <p style="margin:0 0 16px;">
+          <a href="${url}" style="display:inline-block;background:#e05a47;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;">Reset my password</a>
+        </p>
+        <p style="margin:0 0 12px;">This link expires in about an hour. If you didn't ask to reset your password, you can safely ignore this email — nothing will change.</p>
+        <p style="margin:0;">— The Trims &amp; Bubbles team</p>
+      `;
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your Trims & Bubbles password",
+        html: emailLayout(body),
+        text: `Hi ${user.name}, reset your Trims & Bubbles password here: ${url} — this link expires in about an hour. If you didn't request it, ignore this email.`,
+        replyTo: await getOwnerEmail(),
+      });
+    },
   },
   plugins: [
     adminPlugin({
