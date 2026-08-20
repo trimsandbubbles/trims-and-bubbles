@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { runAction } from "@/lib/run-action";
 import { recordManualPayment } from "@/lib/actions/admin-appointments";
 
 const selectClass =
@@ -40,13 +41,10 @@ export function RecordPaymentForm({
       return;
     }
     startTransition(async () => {
-      const result = await recordManualPayment({ appointmentId, type, amountCents, method });
-      if (result.status === "success") {
-        toast.success("Payment recorded");
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => recordManualPayment({ appointmentId, type, amountCents, method }), {
+        success: "Payment recorded",
+        onSuccess: () => router.refresh(),
+      });
     });
   }
 

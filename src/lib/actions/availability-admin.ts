@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireStaffOrOwner } from "@/lib/session";
+import { requireOwner } from "@/lib/session";
 
 const windowSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/, "Use HH:mm"),
@@ -25,7 +25,7 @@ export type ActionResult = { status: "success" } | { status: "error"; message: s
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export async function updateWeeklyHours(days: z.infer<typeof dayScheduleSchema>[]): Promise<ActionResult> {
-  await requireStaffOrOwner();
+  await requireOwner();
   const parsed = z.array(dayScheduleSchema).safeParse(days);
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? "Please check the hours entered." };
@@ -104,7 +104,7 @@ function assertOrderedNonOverlapping(
 }
 
 export async function saveWeeklyAvailability(days: z.infer<typeof daySaveSchema>[]): Promise<ActionResult> {
-  await requireStaffOrOwner();
+  await requireOwner();
   const parsed = z.array(daySaveSchema).length(7, "Provide all seven days").safeParse(days);
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? "Please check the availability entered." };
@@ -183,7 +183,7 @@ const exceptionSchema = z
   });
 
 export async function addAvailabilityException(input: z.infer<typeof exceptionSchema>): Promise<ActionResult> {
-  await requireStaffOrOwner();
+  await requireOwner();
   const parsed = exceptionSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? "Please check the details." };
@@ -221,7 +221,7 @@ export async function addAvailabilityException(input: z.infer<typeof exceptionSc
 }
 
 export async function deleteAvailabilityException(id: string): Promise<ActionResult> {
-  await requireStaffOrOwner();
+  await requireOwner();
   await prisma.availabilityException.delete({ where: { id } });
   revalidatePath("/admin/availability");
   return { status: "success" };

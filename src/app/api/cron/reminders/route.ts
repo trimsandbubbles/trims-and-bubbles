@@ -7,16 +7,21 @@ import { getOwnerEmail } from "@/lib/owner-email";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
 
 /**
- * Daily job (Vercel Cron) that emails a friendly "your appointment is in 2 days"
- * reminder — with the drop-off address again — to every customer whose booking
- * falls on the date two days out.
+ * Daily job (Vercel Cron) that emails a friendly reminder — with the drop-off
+ * address again — to every customer with a booking coming up in the next couple
+ * of days that we haven't reminded yet.
  *
- * Idempotent: each appointment carries `reminderSentAt`, set once here, so a
- * second run the same day never double-sends. A multi-dog booking (several rows
- * sharing a bookingGroupId) gets ONE email listing every dog.
+ * Window: from now up to the END of the day two days out. Deliberately broader
+ * than "exactly 2 days out" so a booking made late (inside that window) still
+ * gets a reminder, and a reminder whose email send FAILED is retried on the next
+ * daily run instead of being silently lost.
  *
- * Protected by CRON_SECRET: Vercel Cron sends it as a Bearer token; a request
- * without it is rejected, so the endpoint can't be triggered by the public.
+ * Idempotent: `reminderSentAt` is stamped only once the email actually goes out
+ * (or immediately for walk-ins with no email address), so nobody is reminded
+ * twice and a transient email outage doesn't permanently skip anyone. A
+ * multi-dog booking (rows sharing a bookingGroupId) gets ONE email.
+ *
+ * Protected by CRON_SECRET, which Vercel Cron sends as a Bearer token.
  */
 
 export const dynamic = "force-dynamic";
@@ -33,7 +38,7 @@ const WHEN_FMT = new Intl.DateTimeFormat("en-AU", {
 });
 
 /** The Sydney calendar date REMIND_DAYS_AHEAD days from today, as YYYY-MM-DD. */
-function targetDateStr(): string {
+function horizonDateStr(): string {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
   const [y, m, d] = today.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + REMIND_DAYS_AHEAD)).toISOString().slice(0, 10);
@@ -51,12 +56,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dateStr = targetDateStr();
-  const { start, end } = sydneyCalendarDayRange(dateStr);
+  // Remind for anything from now up to the end of the day two days out that
+  // hasn't been reminded yet.
+  const now = new Date();
+  const horizon = horizonDateStr();
+  const { end: windowEnd } = sydneyCalendarDayRange(horizon);
 
   const appts = await prisma.appointment.findMany({
     where: {
-      startAt: { gte: start, lt: end },
+      startAt: { gte: now, lt: windowEnd },
       status: { in: ["CONFIRMED", "PENDING_PAYMENT", "IN_PROGRESS"] },
       reminderSentAt: null,
     },
@@ -70,7 +78,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (appts.length === 0) {
-    return NextResponse.json({ ok: true, date: dateStr, groups: 0, reminded: 0 });
+    return NextResponse.json({ ok: true, horizon, groups: 0, reminded: 0 });
   }
 
   // Group by bookingGroupId (fall back to the row id) so a multi-dog booking
@@ -90,8 +98,13 @@ export async function GET(request: NextRequest) {
   for (const group of groups.values()) {
     const first = group[0];
     const to = first.client.user.email;
+
+    // Walk-in with a placeholder address → nothing to send, mark handled so we
+    // stop reselecting it. Real recipient → only mark sent if the email actually
+    // went out, so a transient failure retries on the next daily run.
+    let handled = true;
     if (isEmailable(to)) {
-      await sendReminder({
+      handled = await sendReminder({
         to,
         customerName: first.client.user.name,
         startAt: first.startAt,
@@ -103,17 +116,21 @@ export async function GET(request: NextRequest) {
         replyTo: ownerEmail,
       });
     }
-    // Mark sent regardless (email is best-effort) so we never re-process daily.
-    await prisma.appointment.updateMany({
-      where: { id: { in: group.map((g) => g.id) } },
-      data: { reminderSentAt: new Date() },
-    });
-    reminded += group.length;
+
+    if (handled) {
+      await prisma.appointment.updateMany({
+        where: { id: { in: group.map((g) => g.id) } },
+        data: { reminderSentAt: new Date() },
+      });
+      if (isEmailable(to)) reminded += group.length;
+    }
   }
 
-  return NextResponse.json({ ok: true, date: dateStr, groups: groups.size, reminded });
+  return NextResponse.json({ ok: true, horizon, groups: groups.size, reminded });
 }
 
+/** Returns true only if the reminder email was actually sent (sendEmail is
+ * fail-soft and returns false on failure/timeout). */
 async function sendReminder(n: {
   to: string;
   customerName: string;
@@ -121,7 +138,7 @@ async function sendReminder(n: {
   dogs: { petName: string; services: string[] }[];
   address: string | null;
   replyTo: string;
-}): Promise<void> {
+}): Promise<boolean> {
   const when = WHEN_FMT.format(n.startAt);
   const listHtml = `<ul style="margin:0 0 12px;padding-left:18px;">${n.dogs
     .map((d) => `<li style="margin:0 0 4px;"><strong>${escapeHtml(d.petName)}</strong> — ${escapeHtml(d.services.join(" + "))}</li>`)
@@ -134,7 +151,7 @@ async function sendReminder(n: {
 
   const body = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(n.customerName)},</p>
-    <p style="margin:0 0 12px;">Just a friendly reminder — your Trims &amp; Bubbles appointment is coming up in 2 days. 🐾</p>
+    <p style="margin:0 0 12px;">Just a friendly reminder — your Trims &amp; Bubbles appointment is coming up. 🐾</p>
     <p style="margin:0 0 6px;">When: <strong>${escapeHtml(when)}</strong></p>
     ${listHtml}
     ${addressHtml}
@@ -142,11 +159,11 @@ async function sendReminder(n: {
     <p style="margin:0;">See you soon,<br/>The Trims &amp; Bubbles team</p>
   `;
 
-  await sendEmail({
+  return sendEmail({
     to: n.to,
     subject: `Reminder: your appointment on ${when}`,
     html: emailLayout(body),
-    text: `Hi ${n.customerName}, a friendly reminder your Trims & Bubbles appointment is in 2 days — ${when}. ${listText}.${addressText} Payment in person (cash). See you soon!`,
+    text: `Hi ${n.customerName}, a friendly reminder your Trims & Bubbles appointment is coming up — ${when}. ${listText}.${addressText} Payment in person (cash). See you soon!`,
     replyTo: n.replyTo,
   });
 }

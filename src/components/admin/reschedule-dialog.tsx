@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { CalendarClock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { runAction } from "@/lib/run-action";
 import { rescheduleAppointment } from "@/lib/actions/admin-appointments";
 
 type SlotDTO = { startAt: string; endAt: string };
@@ -85,18 +85,19 @@ export function RescheduleDialog({
   async function handleConfirm() {
     if (!chosenStart) return;
     setPending(true);
-    const res = await rescheduleAppointment(appointmentId, chosenStart);
-    setPending(false);
-    if (res.status === "success") {
-      toast.success("Appointment moved");
-      setOpen(false);
-      setSelectedDate(undefined);
-      setChosenStart(null);
-      setResult(null);
-      router.refresh();
-    } else {
-      toast.error(res.message);
-    }
+    // runAction guarantees a toast even if the action THROWS (e.g. an expired
+    // session), so the button can never get stuck on "Moving..." with no feedback.
+    const res = await runAction(() => rescheduleAppointment(appointmentId, chosenStart), {
+      success: "Appointment moved",
+      onSuccess: () => {
+        setOpen(false);
+        setSelectedDate(undefined);
+        setChosenStart(null);
+        setResult(null);
+        router.refresh();
+      },
+    });
+    if (!res || res.status === "error") setPending(false);
   }
 
   return (

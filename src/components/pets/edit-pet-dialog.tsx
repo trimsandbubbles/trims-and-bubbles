@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { PetFormFields, type PetFormValues } from "@/components/pets/pet-form-fields";
+import { runAction } from "@/lib/run-action";
 import { updatePet } from "@/lib/actions/pets";
 import type { SizeBand } from "@/components/booking/types";
 
@@ -48,22 +48,25 @@ export function EditPetDialog({ pet }: { pet: EditablePet }) {
     e.preventDefault();
     const weightKg = values.weightKg.trim() ? Number(values.weightKg) : undefined;
     startTransition(async () => {
-      const result = await updatePet({
-        petId: pet.id,
-        name: values.name.trim(),
-        breed: values.breed.trim() || undefined,
-        sizeBand: values.sizeBand,
-        weightKg,
-        coatType: values.coatType.trim() || undefined,
-        temperamentNotes: values.temperamentNotes.trim() || undefined,
-      });
-      if (result.status === "success") {
-        toast.success("Details updated");
-        setOpen(false);
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(
+        () =>
+          updatePet({
+            petId: pet.id,
+            name: values.name.trim(),
+            breed: values.breed.trim() || undefined,
+            sizeBand: values.sizeBand,
+            weightKg,
+            coatType: values.coatType.trim() || undefined,
+            temperamentNotes: values.temperamentNotes.trim() || undefined,
+          }),
+        {
+          success: "Details updated",
+          onSuccess: () => {
+            setOpen(false);
+            router.refresh();
+          },
+        },
+      );
     });
   }
 

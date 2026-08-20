@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { runAction } from "@/lib/run-action";
 import { updateSocialLinks } from "@/lib/actions/admin-social";
 
 export function SocialLinksForm({
@@ -26,17 +26,16 @@ export function SocialLinksForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const result = await updateSocialLinks({
-        instagramUrl: instagramUrl || undefined,
-        facebookUrl: facebookUrl || undefined,
-        tiktokUrl: tiktokUrl || undefined,
-        youtubeUrl: youtubeUrl || undefined,
-      });
-      if (result.status === "success") {
-        toast.success("Social links saved");
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(
+        () =>
+          updateSocialLinks({
+            instagramUrl: instagramUrl || undefined,
+            facebookUrl: facebookUrl || undefined,
+            tiktokUrl: tiktokUrl || undefined,
+            youtubeUrl: youtubeUrl || undefined,
+          }),
+        { success: "Social links saved" },
+      );
     });
   }
 

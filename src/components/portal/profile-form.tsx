@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { runAction } from "@/lib/run-action";
 import { updateMyPhone, updateMarketingOptIn } from "@/lib/actions/profile";
 
 export function ProfileForm({
@@ -23,23 +23,16 @@ export function ProfileForm({
   function handleSavePhone(e: React.FormEvent) {
     e.preventDefault();
     startPhoneTransition(async () => {
-      const result = await updateMyPhone(phone);
-      if (result.status === "success") {
-        toast.success("Phone number updated");
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(() => updateMyPhone(phone), { success: "Phone number updated" });
     });
   }
 
   function handleToggleOptIn(checked: boolean) {
     setMarketingOptIn(checked);
     startOptInTransition(async () => {
-      const result = await updateMarketingOptIn(checked);
-      if (result.status !== "success") {
-        setMarketingOptIn(!checked);
-        toast.error("Couldn't update that — please try again.");
-      }
+      // runAction toasts on any failure (returned OR thrown); revert the optimistic
+      // toggle so the Switch never shows a state that wasn't actually saved.
+      await runAction(() => updateMarketingOptIn(checked), { onError: () => setMarketingOptIn(!checked) });
     });
   }
 

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { runAction } from "@/lib/run-action";
 import { sendClientMessage } from "@/lib/actions/client-messages";
 
 export function SendMessageForm({ clientId }: { clientId: string }) {
@@ -18,18 +19,13 @@ export function SendMessageForm({ clientId }: { clientId: string }) {
       return;
     }
     startTransition(async () => {
-      const result = await sendClientMessage({
-        clientId,
-        subject: subject.trim() || undefined,
-        body,
+      await runAction(() => sendClientMessage({ clientId, subject: subject.trim() || undefined, body }), {
+        success: "Message sent",
+        onSuccess: () => {
+          setSubject("");
+          setBody("");
+        },
       });
-      if (result.status === "success") {
-        toast.success("Message sent");
-        setSubject("");
-        setBody("");
-      } else {
-        toast.error(result.message);
-      }
     });
   }
 
@@ -39,6 +35,7 @@ export function SendMessageForm({ clientId }: { clientId: string }) {
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
         placeholder="Subject (optional)"
+        aria-label="Message subject (optional)"
         maxLength={150}
       />
       <Textarea
@@ -46,6 +43,7 @@ export function SendMessageForm({ clientId }: { clientId: string }) {
         onChange={(e) => setBody(e.target.value)}
         rows={4}
         placeholder="Write a message to this client…"
+        aria-label="Message to client"
         maxLength={5000}
       />
       <p className="text-xs text-muted-foreground">

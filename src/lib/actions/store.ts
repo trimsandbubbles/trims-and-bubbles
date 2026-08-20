@@ -67,6 +67,15 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<PlaceOrderR
   if (!resolved.length) {
     return { status: "error", message: "None of those products are available anymore." };
   }
+  // If SOME lines dropped out (a product went inactive/sold-out between the cart
+  // summary and checkout), don't silently place a smaller order for a total the
+  // shopper never agreed to — ask them to review the cart.
+  if (resolved.length !== input.items.length) {
+    return {
+      status: "error",
+      message: "Some items in your cart are no longer available — please review your cart and try again.",
+    };
+  }
 
   // Fail CLOSED: if this deployment is production and Stripe is configured,
   // shoppers expect real payment to be collected — but the store checkout has

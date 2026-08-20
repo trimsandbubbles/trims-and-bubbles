@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { PetFormFields, EMPTY_PET_FORM_VALUES, type PetFormValues } from "@/components/pets/pet-form-fields";
+import { runAction } from "@/lib/run-action";
 import { createPet } from "@/lib/actions/pets";
 
 export function AddPetDialog() {
@@ -18,23 +18,28 @@ export function AddPetDialog() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setPending(true);
-    const result = await createPet({
-      name: values.name.trim(),
-      breed: values.breed.trim() || undefined,
-      sizeBand: values.sizeBand,
-      weightKg: values.weightKg.trim() ? Number(values.weightKg) : undefined,
-      coatType: values.coatType.trim() || undefined,
-      temperamentNotes: values.temperamentNotes.trim() || undefined,
-    });
-    setPending(false);
-    if (result.status === "success") {
-      toast.success(`${values.name} added`);
-      setOpen(false);
-      setValues(EMPTY_PET_FORM_VALUES);
-      router.refresh();
-    } else {
-      toast.error(result.message);
-    }
+    // runAction always surfaces a toast, even if the action throws (e.g. an
+    // expired session), so the button never gets stuck on "Adding..." silently.
+    const result = await runAction(
+      () =>
+        createPet({
+          name: values.name.trim(),
+          breed: values.breed.trim() || undefined,
+          sizeBand: values.sizeBand,
+          weightKg: values.weightKg.trim() ? Number(values.weightKg) : undefined,
+          coatType: values.coatType.trim() || undefined,
+          temperamentNotes: values.temperamentNotes.trim() || undefined,
+        }),
+      {
+        success: `${values.name} added`,
+        onSuccess: () => {
+          setOpen(false);
+          setValues(EMPTY_PET_FORM_VALUES);
+          router.refresh();
+        },
+      },
+    );
+    if (!result || result.status === "error") setPending(false);
   }
 
   return (

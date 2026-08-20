@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, CheckCircle2, ChevronLeft, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -110,6 +110,14 @@ export function BookingWizard({
   const totalCents = lineResults.reduce((sum, r) => sum + r.cents, 0);
   const anyOnInspection = lineResults.some((r) => r.isOnInspection);
 
+  // The chosen time is valid only for the current total duration. If the dogs or
+  // services change (e.g. the user goes Back and adds a dog/service), the required
+  // block changes and the slot-picker re-fetches — so drop any previously-picked
+  // slot to avoid submitting a time chosen for a different (shorter) duration.
+  useEffect(() => {
+    setSlot(null);
+  }, [totalDurationMinutes]);
+
   const allLinesComplete = dogLines.every(lineIsComplete);
   const canContinueDogs = allLinesComplete && (!wantsPickup || pickupAddress.trim().length > 0);
 
@@ -141,8 +149,13 @@ export function BookingWizard({
   async function handleAuthenticated(_name: string, phoneFromSignup?: string) {
     setHasSession(true);
     if (phoneFromSignup) setPhone(phoneFromSignup);
-    const freshPets = await getMyPets();
-    setPets(freshPets);
+    // Refreshing saved pets is best-effort — a transient failure right after login
+    // must NOT strand the user on the auth step. Advance regardless.
+    try {
+      setPets(await getMyPets());
+    } catch {
+      // proceed with whatever pets we already have.
+    }
     setStep("confirm");
   }
 
@@ -167,21 +180,28 @@ export function BookingWizard({
       };
     });
 
-    const result = await createBooking({
-      startAt: slot.startAt,
-      phone: phone.trim(),
-      notesFromClient: notes.trim() || undefined,
-      pickupRequested: wantsPickup,
-      pickupAddress: wantsPickup ? pickupAddress.trim() || undefined : undefined,
-      dogs,
-    });
+    // try/finally guarantees the button always re-enables and an error always
+    // shows — a thrown action (e.g. an expired session) previously left "Booking…"
+    // stuck forever with no message on the customer's final step.
+    try {
+      const result = await createBooking({
+        startAt: slot.startAt,
+        phone: phone.trim(),
+        notesFromClient: notes.trim() || undefined,
+        pickupRequested: wantsPickup,
+        pickupAddress: wantsPickup ? pickupAddress.trim() || undefined : undefined,
+        dogs,
+      });
 
-    if (result.status === "success") {
+      if (result.status === "success") {
+        setBookingResult({ appointmentIds: result.appointmentIds });
+      } else {
+        setSubmitError(result.message);
+      }
+    } catch {
+      setSubmitError("Something went wrong — please try again, or give us a call and we'll sort it out.");
+    } finally {
       setSubmitting(false);
-      setBookingResult({ appointmentIds: result.appointmentIds });
-    } else {
-      setSubmitting(false);
-      setSubmitError(result.message);
     }
   }
 

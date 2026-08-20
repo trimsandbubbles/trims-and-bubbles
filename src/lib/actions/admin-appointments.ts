@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireStaffOrOwner } from "@/lib/session";
 import type { ActionResult } from "@/lib/actions/pets";
 import { validateAndProcessImage, saveImage } from "@/lib/uploads";
-import { isRequestedSlotBookable, totalDurationMinutes } from "@/lib/availability-data";
+import { isRequestedSlotBookable } from "@/lib/availability-data";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
 import { getOwnerEmail } from "@/lib/owner-email";
 
@@ -120,48 +120,50 @@ export async function updateAppointmentStatus(appointmentId: string, status: str
 
   const cleanReason = cancelReason?.trim() || null;
 
-  const updated = await prisma.appointment.update({
-    where: { id: appointmentId },
-    data: {
-      status: parsed.data,
-      cancelledAt: parsed.data === "CANCELLED" ? new Date() : null,
-      cancelReason: parsed.data === "CANCELLED" ? cleanReason : null,
-    },
-    include: {
-      pet: true,
-      primaryService: true,
-      client: { include: { user: true } },
-    },
-  });
+  const now = new Date();
+  const isCancel = parsed.data === "CANCELLED";
 
-  // Cancellation → tell the customer (best-effort; never blocks the update).
-  if (parsed.data === "CANCELLED") {
-    // A multi-dog booking is stored as several back-to-back rows sharing a
-    // bookingGroupId. Cancelling one dog but silently leaving the others booked
-    // would strand the customer with half a booking, so take the whole group —
-    // this matches what the customer-side cancel already does.
-    let alsoCancelled: { pet: { name: string }; primaryService: { name: string } }[] = [];
-    if (updated.bookingGroupId) {
-      const siblings = await prisma.appointment.findMany({
+  // Do the status change AND (for a cancellation) the whole booking-group
+  // cancellation in ONE transaction, so a crash can never leave a multi-dog
+  // booking half-cancelled (one dog off, the rest still confirmed).
+  const { updated, alsoCancelled } = await prisma.$transaction(async (tx) => {
+    const u = await tx.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        status: parsed.data,
+        cancelledAt: isCancel ? now : null,
+        cancelReason: isCancel ? cleanReason : null,
+      },
+      include: { pet: true, primaryService: true, client: { include: { user: true } } },
+    });
+
+    let siblings: { pet: { name: string }; primaryService: { name: string } }[] = [];
+    if (isCancel && u.bookingGroupId) {
+      // A multi-dog booking is several back-to-back rows sharing a bookingGroupId;
+      // cancelling one cancels them all so the customer isn't left half-booked.
+      const active = await tx.appointment.findMany({
         where: {
-          bookingGroupId: updated.bookingGroupId,
-          id: { not: updated.id },
+          bookingGroupId: u.bookingGroupId,
+          id: { not: u.id },
           status: { in: ["PENDING_PAYMENT", "CONFIRMED", "IN_PROGRESS"] },
         },
         include: { pet: true, primaryService: true },
         orderBy: { startAt: "asc" },
       });
-      if (siblings.length > 0) {
-        await prisma.appointment.updateMany({
-          where: { id: { in: siblings.map((s) => s.id) } },
-          data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: cleanReason },
+      if (active.length > 0) {
+        await tx.appointment.updateMany({
+          where: { id: { in: active.map((s) => s.id) } },
+          data: { status: "CANCELLED", cancelledAt: now, cancelReason: cleanReason },
         });
-        alsoCancelled = siblings;
+        siblings = active;
       }
     }
-    // The email must name EVERY dog that was cancelled. Sending one that
-    // mentions only the dog the owner happened to click would leave the
-    // customer believing their other dogs are still booked.
+    return { updated: u, alsoCancelled: siblings };
+  });
+
+  // Cancellation → email the customer, naming EVERY cancelled dog. Best-effort
+  // and outside the transaction so a slow send never holds the DB lock.
+  if (isCancel) {
     await sendCancellationEmail(updated, alsoCancelled);
   }
 
@@ -264,11 +266,13 @@ export async function rescheduleAppointment(appointmentId: string, newStartISO: 
     return { status: "error", message: "This appointment can no longer be changed." };
   }
 
-  const durationMinutes = totalDurationMinutes(
-    apt.primaryService.durationMinutes,
-    apt.addOns.map((a) => a.service.durationMinutes),
-  );
-  const end = new Date(start.getTime() + durationMinutes * 60_000);
+  // Preserve the appointment's ALREADY-reserved length exactly — just shift it to
+  // the new start. Recomputing from services would be wrong: a multi-service dog
+  // reserves max(services) with the extras stored as add-on rows, so summing the
+  // rows (as this used to) would double the block and wrongly reject valid moves.
+  const durationMs = apt.endAt.getTime() - apt.startAt.getTime();
+  const durationMinutes = Math.round(durationMs / 60_000);
+  const end = new Date(start.getTime() + durationMs);
   const dateStr = start.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" }); // YYYY-MM-DD
 
   // Authoritative re-validation — excluding this appointment from its own busy

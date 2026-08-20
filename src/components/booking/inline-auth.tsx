@@ -46,7 +46,14 @@ export function InlineAuth({ onAuthenticated }: { onAuthenticated: (name: string
       setError(signUpError?.message ?? "Couldn't create your account — please try again.");
       return;
     }
-    await ensureClientProfile(phone || undefined);
+    // The account now exists. Saving the phone onto the client profile is a nice-
+    // to-have; if it throws (transient), don't strand the user on this step — the
+    // phone is re-collected on the confirm step anyway. Always advance.
+    try {
+      await ensureClientProfile(phone || undefined);
+    } catch {
+      // best-effort — profile is reconciled when they confirm the booking.
+    }
     setPending(false);
     onAuthenticated(data.user.name, phone || undefined);
   }

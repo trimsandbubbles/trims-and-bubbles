@@ -1,6 +1,8 @@
 "use server";
 
 import { z } from "zod";
+import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
+import { getOwnerEmail } from "@/lib/owner-email";
 
 const contactSchema = z.object({
   name: z.string().min(1, "Please enter your name").max(100, "That name is too long"),
@@ -26,10 +28,24 @@ export async function submitContactForm(
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? "Please check your details." };
   }
+  const { name, email, message } = parsed.data;
 
-  // Dev stand-in for real email delivery — swap for Resend (see RESEND_API_KEY
-  // in .env) once you have a verified sending domain. See DEPLOYMENT.md.
-  console.log("[contact form submission]", parsed.data);
+  // Email the owner the enquiry, with reply-to set to the SENDER so the owner
+  // can reply straight to them (the opposite of our customer-facing emails).
+  // Best-effort: sendEmail is fail-soft, and we always thank the sender so a
+  // transient email hiccup never looks like a broken form.
+  const body = `
+    <p style="margin:0 0 12px;">New message from your website contact form:</p>
+    <p style="margin:0 0 6px;"><strong>${escapeHtml(name)}</strong> (${escapeHtml(email)})</p>
+    <p style="margin:0 0 12px;white-space:pre-wrap;">${escapeHtml(message)}</p>
+  `;
+  await sendEmail({
+    to: await getOwnerEmail(),
+    subject: `New enquiry from ${name}`,
+    html: emailLayout(body),
+    text: `New contact-form message from ${name} (${email}):\n\n${message}`,
+    replyTo: email,
+  });
 
   return { status: "success", message: "Thanks — we'll get back to you shortly." };
 }

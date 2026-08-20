@@ -220,7 +220,25 @@ export async function deleteService(serviceId: string): Promise<ServiceActionRes
     };
   }
 
-  await prisma.service.delete({ where: { id: serviceId } });
+  try {
+    await prisma.service.delete({ where: { id: serviceId } });
+  } catch (err) {
+    // A booking could have referenced this service between the count above and
+    // this delete. Rather than surfacing a raw FK error (P2003), fall back to the
+    // same "hide instead of delete" path so history stays intact.
+    if ((err as { code?: string })?.code === "P2003") {
+      await prisma.service.update({ where: { id: serviceId }, data: { active: false } });
+      revalidatePath("/admin/services");
+      revalidatePath("/services");
+      revalidatePath("/book");
+      return {
+        status: "success",
+        message:
+          "This service was just used by a booking, so it was hidden from the booking form instead of deleted (past appointments stay intact).",
+      };
+    }
+    throw err;
+  }
   revalidatePath("/admin/services");
   revalidatePath("/services");
   revalidatePath("/book");

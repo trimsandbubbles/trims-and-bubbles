@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StarRatingInput } from "@/components/reviews/star-rating-input";
+import { runAction } from "@/lib/run-action";
 import { submitReview } from "@/lib/actions/reviews";
 
 const MAX_PHOTOS = 3;
@@ -74,20 +75,22 @@ export function ReviewForm({
     for (const p of newPhotos) fd.append("photos", p.file);
 
     startTransition(async () => {
-      const result = await submitReview(fd);
-      if (result.status === "success") {
-        toast.success(initial ? "Your review was updated — it's live now!" : "Your review is now live on our website!");
-        // Adopt the server's saved photo list and drop the local previews.
-        newPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
-        setNewPhotos([]);
-        setKeptPhotos(result.photoUrls);
-        setPosted(true);
-        // Refresh so the "Your review is live" card (server-rendered) appears
-        // straight away, even for a brand-new first review.
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
+      // runAction guarantees a toast even if submitReview THROWS (e.g. an expired
+      // session), instead of the submit silently doing nothing.
+      await runAction(() => submitReview(fd), {
+        success: initial ? "Your review was updated — it's live now!" : "Your review is now live on our website!",
+        onSuccess: (result) => {
+          if (result.status !== "success") return;
+          // Adopt the server's saved photo list and drop the local previews.
+          newPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
+          setNewPhotos([]);
+          setKeptPhotos(result.photoUrls);
+          setPosted(true);
+          // Refresh so the "Your review is live" card (server-rendered) appears
+          // straight away, even for a brand-new first review.
+          router.refresh();
+        },
+      });
     });
   }
 

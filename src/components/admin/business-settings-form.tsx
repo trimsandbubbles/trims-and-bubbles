@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { runAction } from "@/lib/run-action";
 import { updateBusinessSettings } from "@/lib/actions/admin-settings";
 
 export function BusinessSettingsForm({
@@ -37,22 +37,21 @@ export function BusinessSettingsForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const result = await updateBusinessSettings({
-        businessName,
-        contactPhone: contactPhone || undefined,
-        contactEmail: contactEmail || undefined,
-        depositPercentage: Number(depositPercentage),
-        fullAddress: fullAddress || undefined,
-        bookingAddress: bookingAddress || undefined,
-        serviceAreaNote: serviceAreaNote || undefined,
-        credentialTitle: credentialTitle || undefined,
-        credentialInstitution: credentialInstitution || undefined,
-      });
-      if (result.status === "success") {
-        toast.success("Settings saved");
-      } else {
-        toast.error(result.message);
-      }
+      await runAction(
+        () =>
+          updateBusinessSettings({
+            businessName,
+            contactPhone: contactPhone || undefined,
+            contactEmail: contactEmail || undefined,
+            depositPercentage: Number(depositPercentage),
+            fullAddress: fullAddress || undefined,
+            bookingAddress: bookingAddress || undefined,
+            serviceAreaNote: serviceAreaNote || undefined,
+            credentialTitle: credentialTitle || undefined,
+            credentialInstitution: credentialInstitution || undefined,
+          }),
+        { success: "Settings saved" },
+      );
     });
   }
 
