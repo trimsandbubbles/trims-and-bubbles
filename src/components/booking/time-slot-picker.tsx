@@ -66,11 +66,18 @@ function listDayNames(dayIndexes: number[]): string {
 export function TimeSlotPicker({
   durationMinutes,
   closedWeekdays,
+  openExceptionDates = [],
+  closedExceptionDates = [],
   value,
   onChange,
 }: {
   durationMinutes: number;
   closedWeekdays: number[];
+  /** Specific YYYY-MM-DD dates opened by a one-off exception (bookable even on a
+   * normally-closed weekday). */
+  openExceptionDates?: string[];
+  /** Specific YYYY-MM-DD dates closed by a one-off exception. */
+  closedExceptionDates?: string[];
   value: ChosenSlot | null;
   onChange: (slot: ChosenSlot) => void;
 }) {
@@ -149,7 +156,13 @@ export function TimeSlotPicker({
         mode="single"
         selected={selectedDate}
         onSelect={setSelectedDate}
-        disabled={(date) => date < today || date > maxDate || closedWeekdays.includes(date.getDay())}
+        disabled={(date) => {
+          if (date < today || date > maxDate) return true;
+          const ds = toDateStr(date);
+          if (closedExceptionDates.includes(ds)) return true; // one-off closed
+          if (openExceptionDates.includes(ds)) return false; // one-off open overrides the weekly rule
+          return closedWeekdays.includes(date.getDay());
+        }}
         className="rounded-xl border border-border"
       />
 

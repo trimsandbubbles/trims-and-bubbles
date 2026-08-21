@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { AvailabilityEditor } from "@/components/admin/availability-editor";
 import { ExceptionsEditor } from "@/components/admin/exceptions-editor";
+import { SpecialOpenDaysForm } from "@/components/admin/special-open-days-form";
 
 export const metadata: Metadata = { title: "Availability | Admin" };
 
@@ -31,6 +32,7 @@ export default async function AdminAvailabilityPage() {
             endTime: s.endTime,
           }))}
         />
+        <SpecialOpenDaysForm />
         <ExceptionsEditor
           initialExceptions={exceptions.map((e) => ({
             id: e.id,

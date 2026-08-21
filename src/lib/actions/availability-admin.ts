@@ -224,5 +224,96 @@ export async function deleteAvailabilityException(id: string): Promise<ActionRes
   await requireOwner();
   await prisma.availabilityException.delete({ where: { id } });
   revalidatePath("/admin/availability");
+  revalidatePath("/book");
+  revalidatePath("/contact");
+  return { status: "success" };
+}
+
+// ── Special open days (a one-off open PERIOD, e.g. school holidays) ──────────
+//
+// Opens a RANGE of dates with hand-picked drop-off slots, WITHOUT touching the
+// recurring weekly schedule. Implemented as one CUSTOM_SLOTS availability
+// exception per date, so it reuses the same per-date override the booking engine
+// already honours (a date with an open exception is bookable even if that weekday
+// is normally closed). Clearing the range just deletes those exceptions.
+
+const MAX_SPECIAL_DAYS = 92;
+
+const specialOpenSchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a start date"),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick an end date"),
+  slots: z.array(windowSchema).min(1, "Add at least one drop-off time").max(24),
+  reason: z.string().max(120).optional(),
+});
+
+/** Enumerate the YYYY-MM-DD dates from start to end (inclusive), using UTC-midnight
+ * math so it's calendar-correct and timezone-agnostic. Capped for safety. */
+function enumerateDates(startDate: string, endDate: string): string[] | null {
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null;
+  const dates: string[] = [];
+  for (let t = start.getTime(); t <= end.getTime() && dates.length < MAX_SPECIAL_DAYS; t += 24 * 60 * 60_000) {
+    dates.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+export async function createSpecialOpenDays(input: z.infer<typeof specialOpenSchema>): Promise<ActionResult> {
+  await requireOwner();
+  const parsed = specialOpenSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? "Please check the details." };
+  }
+  const d = parsed.data;
+  const slotErr = assertOrderedNonOverlapping(d.slots, "The drop-off times", "drop-off time");
+  if (slotErr) return { status: "error", message: slotErr };
+
+  const dates = enumerateDates(d.startDate, d.endDate);
+  if (!dates) return { status: "error", message: "The end date must be on or after the start date." };
+
+  await prisma.$transaction(
+    dates.map((date) =>
+      prisma.availabilityException.upsert({
+        where: { date: new Date(`${date}T00:00:00.000Z`) },
+        update: {
+          type: "CUSTOM_SLOTS",
+          customSlots: d.slots,
+          customStartTime: null,
+          customEndTime: null,
+          reason: d.reason?.trim() || "Special open days",
+        },
+        create: {
+          date: new Date(`${date}T00:00:00.000Z`),
+          type: "CUSTOM_SLOTS",
+          customSlots: d.slots,
+          reason: d.reason?.trim() || "Special open days",
+        },
+      }),
+    ),
+  );
+
+  revalidatePath("/admin/availability");
+  revalidatePath("/admin/calendar");
+  revalidatePath("/book");
+  revalidatePath("/contact");
+  return { status: "success" };
+}
+
+/** Removes every one-off exception in a date range — the "undo" for a special
+ * open period (or any batch of one-off days). */
+export async function clearExceptionsInRange(startDate: string, endDate: string): Promise<ActionResult> {
+  await requireOwner();
+  const dates = enumerateDates(startDate, endDate);
+  if (!dates) return { status: "error", message: "The end date must be on or after the start date." };
+
+  await prisma.availabilityException.deleteMany({
+    where: { date: { in: dates.map((date) => new Date(`${date}T00:00:00.000Z`)) } },
+  });
+
+  revalidatePath("/admin/availability");
+  revalidatePath("/admin/calendar");
+  revalidatePath("/book");
+  revalidatePath("/contact");
   return { status: "success" };
 }

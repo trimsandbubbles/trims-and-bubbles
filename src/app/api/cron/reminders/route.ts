@@ -5,6 +5,7 @@ import { sydneyCalendarDayRange } from "@/lib/availability-data";
 import { getBusinessSettings } from "@/lib/services-data";
 import { getOwnerEmail } from "@/lib/owner-email";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
+import { formatCents } from "@/lib/format";
 
 /**
  * The daily customer-emails job (Vercel Cron). It does two things, both
@@ -21,7 +22,7 @@ import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
-const REMIND_DAYS_AHEAD = 2;
+const REMIND_DAYS_AHEAD = 1;
 const SITE_URL = "https://trimsandbubbles.com.au";
 // How far back past the target the rebook window reaches, so a missed run (or a
 // visit that lands a few days off the exact week) still gets one nudge.
@@ -90,6 +91,7 @@ async function runReminders(ownerEmail: string, address: string | null) {
         customerName: first.client.user.name,
         startAt: first.startAt,
         dogs: group.map((g) => ({ petName: g.pet.name, services: [g.primaryService.name, ...g.addOns.map((x) => x.service.name)] })),
+        totalCents: group.reduce((s, g) => s + g.totalPriceCents, 0),
         address,
         replyTo: ownerEmail,
       });
@@ -177,6 +179,7 @@ async function sendReminder(n: {
   customerName: string;
   startAt: Date;
   dogs: { petName: string; services: string[] }[];
+  totalCents: number;
   address: string | null;
   replyTo: string;
 }): Promise<boolean> {
@@ -185,13 +188,19 @@ async function sendReminder(n: {
     .map((d) => `<li style="margin:0 0 4px;"><strong>${escapeHtml(d.petName)}</strong> — ${escapeHtml(d.services.join(" + "))}</li>`)
     .join("")}</ul>`;
   const listText = n.dogs.map((d) => `${d.petName}: ${d.services.join(" + ")}`).join("; ");
+  const amountHtml =
+    n.totalCents > 0
+      ? `<p style="margin:0 0 12px;">Amount to pay on the day: <strong>${escapeHtml(formatCents(n.totalCents))}</strong> (cash)</p>`
+      : "";
+  const amountText = n.totalCents > 0 ? ` Amount to pay on the day: ${formatCents(n.totalCents)} (cash).` : "";
   const addressHtml = n.address ? `<p style="margin:0 0 12px;">Drop-off address: <strong>${escapeHtml(n.address)}</strong></p>` : "";
   const addressText = n.address ? ` Drop-off address: ${n.address}.` : "";
   const body = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(n.customerName)},</p>
-    <p style="margin:0 0 12px;">Just a friendly reminder — your Trims &amp; Bubbles appointment is coming up. 🐾</p>
+    <p style="margin:0 0 12px;">Just a friendly reminder — your Trims &amp; Bubbles appointment is coming up soon. 🐾</p>
     <p style="margin:0 0 6px;">When: <strong>${escapeHtml(when)}</strong></p>
     ${listHtml}
+    ${amountHtml}
     ${addressHtml}
     <p style="margin:0 0 12px;">Payment is in person on the day (cash). If anything's changed, just reply to this email and we'll sort it out.</p>
     <p style="margin:0;">See you soon,<br/>The Trims &amp; Bubbles team</p>
@@ -200,7 +209,7 @@ async function sendReminder(n: {
     to: n.to,
     subject: `Reminder: your appointment on ${when}`,
     html: emailLayout(body),
-    text: `Hi ${n.customerName}, a friendly reminder your Trims & Bubbles appointment is coming up — ${when}. ${listText}.${addressText} Payment in person (cash). See you soon!`,
+    text: `Hi ${n.customerName}, a friendly reminder your Trims & Bubbles appointment is coming up soon — ${when}. ${listText}.${amountText}${addressText} Payment in person (cash). See you soon!`,
     replyTo: n.replyTo,
   });
 }

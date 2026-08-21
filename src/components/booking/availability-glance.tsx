@@ -25,10 +25,13 @@ export function AvailabilityGlance({
   rules,
   modes = {},
   fixedSlots = {},
+  specialOpenLabel = null,
 }: {
   rules: WeeklyRuleRow[];
   modes?: Record<number, AvailabilityDisplayMode>;
   fixedSlots?: Record<number, TimeRange[]>;
+  /** Optional "extra availability" highlight shown under the weekly schedule. */
+  specialOpenLabel?: string | null;
 }) {
   const grouped = resolveWeeklyDisplay(rules, modes, fixedSlots);
   const days = ORDER.map((d) => grouped.find((r) => r.dayOfWeek === d)).filter((r): r is NonNullable<typeof r> => !!r);
@@ -54,6 +57,11 @@ export function AvailabilityGlance({
             </div>
           ))}
         </div>
+        {specialOpenLabel && (
+          <div className="mt-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-foreground">
+            ✨ {specialOpenLabel} — extra open days on top of the usual hours. Pick one of those dates below!
+          </div>
+        )}
         <p className="mt-3 text-xs text-muted-foreground">
           Pick your exact time on the calendar in the last step — live openings update as you go.
         </p>

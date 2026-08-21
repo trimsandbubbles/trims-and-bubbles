@@ -72,6 +72,8 @@ export function BookingWizard({
   initialSession,
   initialPets,
   closedWeekdays,
+  openExceptionDates = [],
+  closedExceptionDates = [],
   bookingAddress,
 }: {
   services: ServiceDTO[];
@@ -79,6 +81,8 @@ export function BookingWizard({
   initialSession: { name: string; email: string; phone: string | null } | null;
   initialPets: PetDTO[];
   closedWeekdays: number[];
+  openExceptionDates?: string[];
+  closedExceptionDates?: string[];
   bookingAddress?: string | null;
 }) {
   const [step, setStep] = useState<Step>("dogs");
@@ -324,6 +328,8 @@ export function BookingWizard({
             <TimeSlotPicker
               durationMinutes={totalDurationMinutes}
               closedWeekdays={closedWeekdays}
+              openExceptionDates={openExceptionDates}
+              closedExceptionDates={closedExceptionDates}
               value={slot}
               onChange={setSlot}
             />

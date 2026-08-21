@@ -12,13 +12,19 @@ import { NeedHelp } from "@/components/need-help";
 export const metadata: Metadata = { title: "Book an Appointment" };
 
 export default async function BookPage() {
-  const [allServices, session, rules, modes, fixedSlots, settings] = await Promise.all([
+  // "Today" as a Sydney calendar date, so we only surface upcoming one-off days.
+  const todaySydney = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
+  const [allServices, session, rules, modes, fixedSlots, settings, exceptions] = await Promise.all([
     getActiveServicesWithPricing(),
     getCurrentSession(),
     prisma.availabilityRule.findMany(),
     getDayModesMap(),
     getFixedSlotsMap(),
     getBusinessSettings(),
+    prisma.availabilityException.findMany({
+      where: { date: { gte: new Date(`${todaySydney}T00:00:00.000Z`) } },
+      orderBy: { date: "asc" },
+    }),
   ]);
 
   // Sizes are SMALL/MEDIUM/LARGE now (XL was removed from the offering). The DB
@@ -54,15 +60,35 @@ export default async function BookPage() {
     return !isOpen;
   });
 
+  // One-off overrides for specific dates (e.g. "special open days"). An open
+  // exception makes a date bookable even on a normally-closed weekday; a CLOSED
+  // exception blocks a normally-open date. These override the weekly rule for
+  // just those calendar dates in the picker.
+  const openExceptionDates = exceptions
+    .filter((e) => e.type === "CUSTOM_SLOTS" || e.type === "CUSTOM_HOURS")
+    .map((e) => e.date.toISOString().slice(0, 10));
+  const closedExceptionDates = exceptions.filter((e) => e.type === "CLOSED").map((e) => e.date.toISOString().slice(0, 10));
+
+  // "Extra availability" banner: the span of upcoming special open days.
+  const rangeFmt = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long" });
+  const specialOpenLabel =
+    openExceptionDates.length > 0
+      ? `Extra availability: ${rangeFmt.format(new Date(`${openExceptionDates[0]}T00:00:00`))} – ${rangeFmt.format(
+          new Date(`${openExceptionDates[openExceptionDates.length - 1]}T00:00:00`),
+        )}`
+      : null;
+
   return (
     <div>
-      <AvailabilityGlance rules={rules} modes={modes} fixedSlots={fixedSlots} />
+      <AvailabilityGlance rules={rules} modes={modes} fixedSlots={fixedSlots} specialOpenLabel={specialOpenLabel} />
       <BookingWizard
         services={services}
         addOnServices={addOnServices}
         initialSession={session ? { name: session.user.name, email: session.user.email, phone } : null}
         initialPets={pets}
         closedWeekdays={closedWeekdays}
+        openExceptionDates={openExceptionDates}
+        closedExceptionDates={closedExceptionDates}
         bookingAddress={settings.bookingAddress ?? null}
       />
       <div className="mx-auto max-w-2xl px-4 pb-14 sm:px-6">

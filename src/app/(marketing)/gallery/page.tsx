@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { PawPrint } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { EditableText } from "@/components/site-content/editable-text";
 
@@ -75,18 +74,11 @@ export default async function GalleryPage() {
           </EditableText>
         )}
 
-        <div>
-          <EditableText contentKey="gallery.dogFriends.heading" as="h2" className="text-xl font-semibold tracking-tight">
-            {DOG_FRIENDS_GROUP_LABEL}
-          </EditableText>
-          {dogFriendsItems.length === 0 ? (
-            <div className="mt-5 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-12 text-center text-muted-foreground">
-              <PawPrint className="h-6 w-6" aria-hidden />
-              <EditableText contentKey="gallery.dogFriends.empty" as="p" className="text-sm text-pretty">
-                Photos of the dogs we&apos;ve cared for over the years are coming soon.
-              </EditableText>
-            </div>
-          ) : (
+        {dogFriendsItems.length > 0 && (
+          <div>
+            <EditableText contentKey="gallery.dogFriends.heading" as="h2" className="text-xl font-semibold tracking-tight">
+              {DOG_FRIENDS_GROUP_LABEL}
+            </EditableText>
             <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {dogFriendsItems.map((item, i) => {
                 photoIndex++;
@@ -107,8 +99,8 @@ export default async function GalleryPage() {
                 );
               })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {groups.map(([group, items]) => (
           <div key={group}>

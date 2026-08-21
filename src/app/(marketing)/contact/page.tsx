@@ -23,12 +23,23 @@ const DAY_LABELS: Record<number, string> = {
 };
 
 export default async function ContactPage() {
-  const [rules, business, modes, fixedSlots] = await Promise.all([
+  const todaySydney = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
+  const [rules, business, modes, fixedSlots, exceptions] = await Promise.all([
     prisma.availabilityRule.findMany({ orderBy: { dayOfWeek: "asc" } }),
     getBusinessDetails(),
     getDayModesMap(),
     getFixedSlotsMap(),
+    prisma.availabilityException.findMany({
+      where: { date: { gte: new Date(`${todaySydney}T00:00:00.000Z`) }, type: { in: ["CUSTOM_SLOTS", "CUSTOM_HOURS"] } },
+      orderBy: { date: "asc" },
+    }),
   ]);
+
+  const rangeFmt = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", timeZone: "UTC" });
+  const specialOpenLabel =
+    exceptions.length > 0
+      ? `${rangeFmt.format(exceptions[0].date)} – ${rangeFmt.format(exceptions[exceptions.length - 1].date)}`
+      : null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
@@ -91,6 +102,15 @@ export default async function ContactPage() {
                 </div>
               ))}
             </div>
+            {specialOpenLabel && (
+              <div className="mt-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-foreground">
+                ✨ Extra open days: {specialOpenLabel} — book them on our{" "}
+                <a href="/book" className="underline underline-offset-4">
+                  booking page
+                </a>
+                .
+              </div>
+            )}
           </div>
         </div>
 

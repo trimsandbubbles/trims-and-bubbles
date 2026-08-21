@@ -9,6 +9,7 @@ import { getBusinessSettings } from "@/lib/services-data";
 import { checkSlotStillOpen, isRequestedSlotBookable } from "@/lib/availability-data";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
 import { resolveOwnerEmail } from "@/lib/owner-email";
+import { formatCents } from "@/lib/format";
 
 /** One groomer can't realistically do more than this in a single visit; more
  * than that, ask them to call so it can be spread across days. */
@@ -294,6 +295,7 @@ export async function createBooking(rawInput: BookingInput): Promise<BookingResu
     startAt,
     clientNote: input.notesFromClient || null,
     bookingAddress: settings.bookingAddress || null,
+    totalCents: resolved.reduce((s, r) => s + r.priceCents, 0),
     dogs: resolved.map((r) => ({ petName: r.petName, serviceName: r.serviceName, addOnNames: r.addOns.map((a) => a.name) })),
   });
 
@@ -324,6 +326,7 @@ type NewBookingNotification = {
   startAt: Date;
   clientNote: string | null;
   bookingAddress: string | null;
+  totalCents: number;
   dogs: BookingDogLine[];
 };
 
@@ -369,11 +372,17 @@ async function notifyNewBooking(n: NewBookingNotification): Promise<void> {
     ? `<p style="margin:0 0 12px;">Drop-off address: <strong>${escapeHtml(n.bookingAddress)}</strong></p>`
     : "";
   const addressText = n.bookingAddress ? ` Drop-off address: ${n.bookingAddress}.` : "";
+  const amountHtml =
+    n.totalCents > 0
+      ? `<p style="margin:0 0 12px;">Amount to pay on the day: <strong>${escapeHtml(formatCents(n.totalCents))}</strong> (cash)</p>`
+      : "";
+  const amountText = n.totalCents > 0 ? ` Amount to pay on the day: ${formatCents(n.totalCents)} (cash).` : "";
   const customerBody = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(n.customerName)},</p>
     <p style="margin:0 0 12px;">Thanks for booking with Trims &amp; Bubbles! 🐾</p>
     <p style="margin:0 0 6px;">When: <strong>${escapeHtml(when)}</strong></p>
     ${listHtml}
+    ${amountHtml}
     ${addressHtml}
     <p style="margin:0 0 12px;">Payment is in person on the day (cash). See you soon!</p>
     <p style="margin:0;">— The Trims &amp; Bubbles team</p>
@@ -382,7 +391,7 @@ async function notifyNewBooking(n: NewBookingNotification): Promise<void> {
     to: n.customerEmail,
     subject: `You're booked in — ${when}`,
     html: emailLayout(customerBody),
-    text: `Hi ${n.customerName}, thanks for booking with Trims & Bubbles! ${when}. ${listText}.${addressText} Payment in person (cash). See you soon!`,
+    text: `Hi ${n.customerName}, thanks for booking with Trims & Bubbles! ${when}. ${listText}.${amountText}${addressText} Payment in person (cash). See you soon!`,
     // Replies go to the owner's monitored inbox (the from-domain can't receive).
     replyTo: resolveOwnerEmail(n.ownerEmail),
   });

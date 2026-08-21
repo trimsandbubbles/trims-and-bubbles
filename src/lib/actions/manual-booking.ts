@@ -9,6 +9,7 @@ import { checkSlotStillOpen } from "@/lib/availability-data";
 import { getBusinessSettings } from "@/lib/services-data";
 import { resolveOwnerEmail } from "@/lib/owner-email";
 import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
+import { formatCents } from "@/lib/format";
 
 /**
  * Owner/staff-created booking for a customer who called or emailed. Unlike the
@@ -257,6 +258,7 @@ export async function createManualBooking(rawInput: ManualBookingInput): Promise
       serviceNames,
       startAt,
       bookingAddress: settings.bookingAddress || null,
+      totalCents: priceCents,
       replyTo: resolveOwnerEmail(settings.contactEmail),
     });
   }
@@ -281,10 +283,16 @@ async function sendManualBookingEmail(n: {
   serviceNames: string[];
   startAt: Date;
   bookingAddress: string | null;
+  totalCents: number;
   replyTo: string;
 }): Promise<void> {
   const when = WHEN_FMT.format(n.startAt);
   const services = n.serviceNames.join(" + ");
+  const amountHtml =
+    n.totalCents > 0
+      ? `<p style="margin:0 0 12px;">Amount to pay on the day: <strong>${escapeHtml(formatCents(n.totalCents))}</strong> (cash)</p>`
+      : "";
+  const amountText = n.totalCents > 0 ? ` Amount to pay on the day: ${formatCents(n.totalCents)} (cash).` : "";
   const addressHtml = n.bookingAddress
     ? `<p style="margin:0 0 12px;">Drop-off address: <strong>${escapeHtml(n.bookingAddress)}</strong></p>`
     : "";
@@ -294,6 +302,7 @@ async function sendManualBookingEmail(n: {
     <p style="margin:0 0 12px;">Your booking with Trims &amp; Bubbles is confirmed. 🐾</p>
     <p style="margin:0 0 6px;">When: <strong>${escapeHtml(when)}</strong></p>
     <p style="margin:0 0 6px;"><strong>${escapeHtml(n.petName)}</strong> — ${escapeHtml(services)}</p>
+    ${amountHtml}
     ${addressHtml}
     <p style="margin:0 0 12px;">Payment is in person on the day (cash). See you soon!</p>
     <p style="margin:0;">— The Trims &amp; Bubbles team</p>
@@ -302,7 +311,7 @@ async function sendManualBookingEmail(n: {
     to: n.to,
     subject: `You're booked in — ${when}`,
     html: emailLayout(body),
-    text: `Hi ${n.customerName}, your Trims & Bubbles booking is confirmed for ${when}. ${n.petName}: ${services}.${addressText} Payment in person (cash). See you soon!`,
+    text: `Hi ${n.customerName}, your Trims & Bubbles booking is confirmed for ${when}. ${n.petName}: ${services}.${amountText}${addressText} Payment in person (cash). See you soon!`,
     replyTo: n.replyTo,
   });
 }
