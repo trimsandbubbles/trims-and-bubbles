@@ -25,7 +25,9 @@ export default async function PortalPetDetailPage({ params }: { params: Promise<
   if (!pet) notFound();
 
   const appointments = await prisma.appointment.findMany({
-    where: { petId: pet.id },
+    // Scoped to this client too (not just petId) so history can never cross
+    // owners even if a pet were ever reassigned — defence-in-depth.
+    where: { petId: pet.id, clientId: client.id },
     orderBy: { startAt: "desc" },
     include: { primaryService: true, addOns: { include: { service: true } }, photos: true },
   });

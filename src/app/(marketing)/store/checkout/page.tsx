@@ -199,7 +199,7 @@ export default function CheckoutPage() {
               {submitting ? "Placing order…" : `Place order · ${formatCents(totalCents)}`}
             </Button>
             <p className="mt-3 text-center text-xs text-muted-foreground">
-              No online payment needed for now — we&apos;ll confirm your order and payment on pickup/delivery.
+              No online payment needed — we&apos;ll confirm your order, then take payment (card or cash) on pickup/delivery.
             </p>
             <p className="mt-3 border-t border-border pt-3 text-center text-xs text-muted-foreground">
               Any trouble? Call{" "}

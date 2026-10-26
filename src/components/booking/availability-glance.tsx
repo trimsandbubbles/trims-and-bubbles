@@ -59,7 +59,7 @@ export function AvailabilityGlance({
         </div>
         {specialOpenLabel && (
           <div className="mt-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-foreground">
-            ✨ {specialOpenLabel} — extra open days on top of the usual hours. Pick one of those dates below!
+            ✨ {specialOpenLabel} — special availability, check the calendar below.
           </div>
         )}
         <p className="mt-3 text-xs text-muted-foreground">

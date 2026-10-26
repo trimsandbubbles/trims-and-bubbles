@@ -76,7 +76,7 @@ export async function LocalBusinessJsonLd() {
     },
     areaServed: "Canberra, ACT",
     currenciesAccepted: "AUD",
-    paymentAccepted: "Cash",
+    paymentAccepted: "Cash, Credit Card, Debit Card",
     ...(priceRange ? { priceRange } : {}),
     ...(openingHoursSpecification.length ? { openingHoursSpecification } : {}),
     ...(sameAs.length ? { sameAs } : {}),
@@ -94,9 +94,10 @@ export async function LocalBusinessJsonLd() {
   return (
     <script
       type="application/ld+json"
-      // Rendered from our own trusted server data (no user HTML), and JSON.stringify
-      // escapes it — safe. Kept minimal and stable so Google can parse it.
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      // Rendered from our own trusted server (owner-only) data. JSON.stringify
+      // handles quoting; we also escape "<" so a value can never break out of the
+      // <script> tag (defence-in-depth). Kept minimal and stable for Google.
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
     />
   );
 }

@@ -7,6 +7,7 @@ import {
   getDaySlotsWithStatus,
   getOpenSlotsForDate,
   isSlotStillOpen,
+  resolveDaySchedule,
   type AvailabilityMode,
   type BusyInterval,
   type DateException,
@@ -185,4 +186,110 @@ export async function isRequestedSlotBookable(
   return slots.some(
     (s) => s.startAt.getTime() === candidate.startAt.getTime() && s.endAt.getTime() === candidate.endAt.getTime(),
   );
+}
+
+/** One toggleable cell in the owner's "block off times" grid. `open` = free and
+ * blockable; `booked` = held by a real appointment (can't be blocked); `blocked`
+ * = an owner block that can be lifted (its `blockId` is how). */
+export type BlockGridSlot = {
+  startAt: string; // ISO
+  endAt: string; // ISO
+  status: "open" | "booked" | "blocked";
+  blockId: string | null;
+};
+
+export type BlockGridDay = { dateStr: string; slots: BlockGridSlot[] };
+
+/**
+ * Builds the owner's "block off times" grid for `days` calendar dates starting
+ * at `startDateStr` (a Sydney business-calendar date). One cell per offered
+ * opening: a fixed/custom slot is one cell; an open-hours window is split into
+ * hourly cells. Each cell is classed open / booked / blocked so the owner can
+ * toggle the open ones off (and lift their own blocks) without ever touching a
+ * real booking. Config + busy data are fetched in bulk (not per-date) so the
+ * whole two-month grid is a handful of queries. Purely additive — creating and
+ * removing blocks reuses the existing BlockedTimeSlot model the booking engine
+ * already subtracts. */
+export async function getBlockGridForRange(startDateStr: string, days: number): Promise<BlockGridDay[]> {
+  const [sy, sm, sd] = startDateStr.split("-").map(Number);
+  const dates: string[] = [];
+  for (let i = 0; i < days; i++) {
+    dates.push(new Date(Date.UTC(sy, sm - 1, sd + i)).toISOString().slice(0, 10));
+  }
+  const rangeStart = sydneyCalendarDayRange(dates[0]).start;
+  const rangeEnd = sydneyCalendarDayRange(dates[dates.length - 1]).end;
+
+  const [weeklyHours, modes, fixedSlots, exceptionRows, appointments, blocks] = await Promise.all([
+    getWeeklyHoursMap(),
+    getDayModesMap(),
+    getFixedSlotsMap(),
+    prisma.availabilityException.findMany({
+      where: {
+        date: {
+          gte: new Date(`${dates[0]}T00:00:00.000Z`),
+          lte: new Date(`${dates[dates.length - 1]}T00:00:00.000Z`),
+        },
+      },
+    }),
+    prisma.appointment.findMany({
+      where: { status: { notIn: ["CANCELLED", "NO_SHOW"] }, startAt: { lt: rangeEnd }, endAt: { gt: rangeStart } },
+      select: { startAt: true, endAt: true },
+    }),
+    prisma.blockedTimeSlot.findMany({
+      where: { startAt: { lt: rangeEnd }, endAt: { gt: rangeStart } },
+      select: { id: true, startAt: true, endAt: true },
+    }),
+  ]);
+
+  const exceptionByDate = new Map<string, DateException>();
+  for (const e of exceptionRows) {
+    exceptionByDate.set(e.date.toISOString().slice(0, 10), {
+      type: e.type,
+      customStartTime: e.customStartTime,
+      customEndTime: e.customEndTime,
+      customSlots: Array.isArray(e.customSlots) ? (e.customSlots as DayWindow[]) : null,
+    });
+  }
+
+  const overlaps = (aS: Date, aE: Date, bS: Date, bE: Date) => aS < bE && aE > bS;
+  const now = new Date();
+  const STEP_MS = 60 * 60_000; // hourly cells for open-hours windows
+
+  return dates.map((ds): BlockGridDay => {
+    const { mode, ranges } = resolveDaySchedule({
+      dateStr: ds,
+      weeklyHours,
+      modes,
+      fixedSlots,
+      exception: exceptionByDate.get(ds) ?? null,
+    });
+    if (ranges.length === 0) return { dateStr: ds, slots: [] };
+
+    const cells: { start: Date; end: Date }[] = [];
+    for (const r of ranges) {
+      const rs = fromZonedTime(`${ds}T${r.startTime}:00`, BUSINESS_TIMEZONE);
+      const re = fromZonedTime(`${ds}T${r.endTime}:00`, BUSINESS_TIMEZONE);
+      if (re.getTime() <= rs.getTime()) continue;
+      if (mode === "FIXED_SLOTS") {
+        cells.push({ start: rs, end: re }); // each fixed/custom slot is one cell
+      } else {
+        for (let t = rs.getTime(); t < re.getTime(); t += STEP_MS) {
+          cells.push({ start: new Date(t), end: new Date(Math.min(t + STEP_MS, re.getTime())) });
+        }
+      }
+    }
+
+    const slots: BlockGridSlot[] = [];
+    for (const c of cells) {
+      if (c.end.getTime() <= now.getTime()) continue; // hide slots already past
+      const block = blocks.find((b) => overlaps(c.start, c.end, b.startAt, b.endAt));
+      if (block) {
+        slots.push({ startAt: c.start.toISOString(), endAt: c.end.toISOString(), status: "blocked", blockId: block.id });
+        continue;
+      }
+      const booked = appointments.some((a) => overlaps(c.start, c.end, a.startAt, a.endAt));
+      slots.push({ startAt: c.start.toISOString(), endAt: c.end.toISOString(), status: booked ? "booked" : "open", blockId: null });
+    }
+    return { dateStr: ds, slots };
+  });
 }

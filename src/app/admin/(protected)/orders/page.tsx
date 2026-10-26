@@ -54,7 +54,7 @@ export default async function AdminOrdersPage() {
       ) : (
         <div className="mt-6 space-y-4">
           {orders.map((order) => (
-            <div key={order.id} className="rounded-xl border border-border bg-card p-4 sm:p-5">
+            <div key={order.id} id={`order-${order.id}`} className="scroll-mt-24 rounded-xl border border-border bg-card p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-mono text-sm font-semibold">#{order.id.slice(-8).toUpperCase()}</p>

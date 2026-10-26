@@ -94,7 +94,7 @@ function zonedWallClockToInstant(dateStr: string, hhmm: string): Date {
  */
 export type ResolvedDaySchedule = { mode: AvailabilityMode; ranges: DayWindow[] };
 
-function resolveDaySchedule(
+export function resolveDaySchedule(
   inputs: Pick<AvailabilityInputs, "dateStr" | "weeklyHours" | "modes" | "fixedSlots" | "exception">,
 ): ResolvedDaySchedule {
   if (inputs.exception) {

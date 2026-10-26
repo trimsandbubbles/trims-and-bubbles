@@ -385,7 +385,7 @@ export function BookingWizard({
                 </div>
               </dl>
               <p className="mt-3 rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">
-                Payment is <span className="font-medium text-foreground">cash on the day</span> of your appointment
+                Payment is <span className="font-medium text-foreground">card or cash on the day</span> of your appointment
                 — no online payment needed to book.
               </p>
             </div>

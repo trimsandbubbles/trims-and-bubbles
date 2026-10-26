@@ -16,6 +16,7 @@ export async function createBlockedTimeSlot(startAtIso: string, endAtIso: string
     data: { startAt, endAt, reason: reason?.trim() || "Blocked", createdByUserId: session.user.id },
   });
   revalidatePath("/admin/calendar");
+  revalidatePath("/admin/block-times");
   return { status: "success" as const };
 }
 
@@ -23,5 +24,6 @@ export async function deleteBlockedTimeSlot(id: string) {
   await requireStaffOrOwner();
   await prisma.blockedTimeSlot.delete({ where: { id } });
   revalidatePath("/admin/calendar");
+  revalidatePath("/admin/block-times");
   return { status: "success" as const };
 }

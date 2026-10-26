@@ -213,13 +213,13 @@ async function notifyNewOrder({ ownerEmail, order }: OrderNotification): Promise
     <p style="margin:0 0 12px;">Thanks for your order with Trims &amp; Bubbles! 🐾</p>
     <ul style="margin:0 0 12px;padding-left:18px;">${itemsHtml}</ul>
     <p style="margin:0 0 6px;"><strong>Total: ${escapeHtml(formatCents(order.totalCents))}</strong></p>
-    <p style="margin:0 0 12px;">Payment is taken in person on ${order.fulfillment === "SHIPPING" ? "delivery" : "pickup"} — we'll be in touch when it's ready.</p>
+    <p style="margin:0 0 12px;">Payment is taken in person on ${order.fulfillment === "SHIPPING" ? "delivery" : "pickup"} — card or cash — and we'll be in touch when it's ready.</p>
     <p style="margin:0;">— The Trims &amp; Bubbles team</p>
   `;
   await sendEmail({
     to: order.contactEmail,
     subject: "We've got your Trims & Bubbles order",
     html: emailLayout(customerBody),
-    text: `Hi ${order.contactName}, thanks for your order! ${itemsText}. Total ${formatCents(order.totalCents)}. Payment in person on ${order.fulfillment === "SHIPPING" ? "delivery" : "pickup"}.`,
+    text: `Hi ${order.contactName}, thanks for your order! ${itemsText}. Total ${formatCents(order.totalCents)}. Payment in person on ${order.fulfillment === "SHIPPING" ? "delivery" : "pickup"} — card or cash.`,
   });
 }

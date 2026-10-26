@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,23 @@ export type ManualClientDTO = {
   phone: string | null;
   pets: { id: string; name: string; sizeBand: SizeBand | "XL"; breed: string | null }[];
 };
+
+/** One dog being booked in this visit — its own dog choice + service selection. */
+type DogLine = {
+  key: string;
+  mode: "existing" | "new";
+  petId: string;
+  newName: string;
+  newBreed: string;
+  newSize: SizeBand;
+  serviceIds: string[];
+};
+
+let lineCounter = 0;
+function blankLine(): DogLine {
+  lineCounter += 1;
+  return { key: `dog-${lineCounter}`, mode: "existing", petId: "", newName: "", newBreed: "", newSize: "MEDIUM", serviceIds: [] };
+}
 
 function normalizeSize(size: SizeBand | "XL"): SizeBand {
   return size === "SMALL" || size === "MEDIUM" || size === "LARGE" ? size : "LARGE";
@@ -60,51 +77,78 @@ export function ManualBookingForm({
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
 
-  const [dogMode, setDogMode] = useState<"existing" | "new">("existing");
-  const [petId, setPetId] = useState<string>("");
-  const [newDogName, setNewDogName] = useState("");
-  const [newDogBreed, setNewDogBreed] = useState("");
-  const [newDogSize, setNewDogSize] = useState<SizeBand>("MEDIUM");
-
-  const [serviceIds, setServiceIds] = useState<string[]>([]);
+  const [dogs, setDogs] = useState<DogLine[]>([blankLine()]);
   const [slot, setSlot] = useState<ChosenSlot | null>(null);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const selectedClient = clients.find((c) => c.id === clientId) ?? null;
   const clientPets = customerMode === "existing" ? (selectedClient?.pets ?? []) : [];
+
   // A new customer, or an existing one with no saved dogs, always enters a new dog.
-  const effectiveDogMode: "existing" | "new" = customerMode === "new" || clientPets.length === 0 ? "new" : dogMode;
+  function effectiveModeFor(line: DogLine): "existing" | "new" {
+    return customerMode === "new" || clientPets.length === 0 ? "new" : line.mode;
+  }
 
-  const selectedPet = clientPets.find((p) => p.id === petId) ?? null;
-  const sizeBand: SizeBand = effectiveDogMode === "existing" ? (selectedPet ? normalizeSize(selectedPet.sizeBand) : "MEDIUM") : newDogSize;
-
-  const chosenServices = useMemo(
-    () => serviceIds.map((id) => services.find((s) => s.id === id)).filter((s): s is ManualServiceDTO => !!s),
-    [serviceIds, services],
-  );
-  const durationMinutes = chosenServices.length ? Math.max(...chosenServices.map((s) => s.durationMinutes)) : 60;
-
-  const { totalCents, anyOnInspection } = useMemo(() => {
-    let total = 0;
-    let onInspection = false;
-    for (const s of chosenServices) {
-      const row = priceRowFor(s, sizeBand);
-      if (row?.isOnInspection) onInspection = true;
-      if (row && !row.isOnInspection) total += row.priceCents;
-    }
-    return { totalCents: total, anyOnInspection: onInspection };
-  }, [chosenServices, sizeBand]);
-
-  function toggleService(id: string) {
-    setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  function updateLine(key: string, patch: Partial<DogLine>) {
+    setDogs((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
     setSlot(null); // duration may change, so re-pick the time
   }
+  function addDog() {
+    setDogs((prev) => (prev.length >= 6 ? prev : [...prev, blankLine()]));
+    setSlot(null);
+  }
+  function removeDog(key: string) {
+    setDogs((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)));
+    setSlot(null);
+  }
+
+  // Per-dog size, chosen services, duration and subtotal.
+  function sizeForLine(line: DogLine): SizeBand {
+    if (effectiveModeFor(line) === "existing") {
+      const pet = clientPets.find((p) => p.id === line.petId);
+      return pet ? normalizeSize(pet.sizeBand) : "MEDIUM";
+    }
+    return line.newSize;
+  }
+  function servicesForLine(line: DogLine): ManualServiceDTO[] {
+    return line.serviceIds.map((id) => services.find((s) => s.id === id)).filter((s): s is ManualServiceDTO => !!s);
+  }
+  function lineTotals(line: DogLine): { cents: number; onInspection: boolean; duration: number } {
+    const chosen = servicesForLine(line);
+    const size = sizeForLine(line);
+    let cents = 0;
+    let onInspection = false;
+    for (const s of chosen) {
+      const row = priceRowFor(s, size);
+      if (row?.isOnInspection) onInspection = true;
+      if (row && !row.isOnInspection) cents += row.priceCents;
+    }
+    const duration = chosen.length ? Math.max(...chosen.map((s) => s.durationMinutes)) : 0;
+    return { cents, onInspection, duration };
+  }
+
+  const grand = useMemo(() => {
+    let cents = 0;
+    let onInspection = false;
+    let duration = 0;
+    for (const line of dogs) {
+      const t = lineTotals(line);
+      cents += t.cents;
+      onInspection = onInspection || t.onInspection;
+      duration += t.duration;
+    }
+    return { cents, onInspection, duration: duration || 60 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dogs, clientId, customerMode]);
 
   const customerReady =
     customerMode === "existing" ? !!clientId : newName.trim().length > 0 && newPhone.trim().length > 0;
-  const dogReady = effectiveDogMode === "existing" ? !!petId : true; // size always defaulted
-  const canSubmit = customerReady && dogReady && serviceIds.length > 0 && !!slot && !submitting;
+  const dogsReady = dogs.every((line) => {
+    const modeOk = effectiveModeFor(line) === "existing" ? !!line.petId : true; // size always defaulted
+    return modeOk && line.serviceIds.length > 0;
+  });
+  const canSubmit = customerReady && dogsReady && !!slot && !submitting;
 
   async function handleSubmit() {
     if (!slot) return;
@@ -115,18 +159,22 @@ export function ManualBookingForm({
         ? ({ mode: "existing", clientId } as const)
         : ({ mode: "new", name: newName.trim(), phone: newPhone.trim(), email: newEmail.trim() || undefined } as const);
 
-    const dog =
-      effectiveDogMode === "existing"
-        ? ({ mode: "existing", petId } as const)
+    const dogsPayload = dogs.map((line) =>
+      effectiveModeFor(line) === "existing"
+        ? ({ dog: { mode: "existing", petId: line.petId } as const, serviceIds: line.serviceIds })
         : ({
-            mode: "new",
-            name: newDogName.trim() || undefined,
-            breed: newDogBreed.trim() || undefined,
-            sizeBand: newDogSize,
-          } as const);
+            dog: {
+              mode: "new",
+              name: line.newName.trim() || undefined,
+              breed: line.newBreed.trim() || undefined,
+              sizeBand: line.newSize,
+            } as const,
+            serviceIds: line.serviceIds,
+          }),
+    );
 
     const result = await runAction(
-      () => createManualBooking({ customer, dog, serviceIds, startAt: slot.startAt, note: note.trim() || undefined }),
+      () => createManualBooking({ customer, dogs: dogsPayload, startAt: slot.startAt, note: note.trim() || undefined }),
       {
         success: "Booking added",
         onSuccess: (r) => {
@@ -149,7 +197,10 @@ export function ManualBookingForm({
               type="button"
               size="sm"
               variant={customerMode === "existing" ? "default" : "outline"}
-              onClick={() => setCustomerMode("existing")}
+              onClick={() => {
+                setCustomerMode("existing");
+                setSlot(null);
+              }}
             >
               Existing customer
             </Button>
@@ -157,7 +208,10 @@ export function ManualBookingForm({
               type="button"
               size="sm"
               variant={customerMode === "new" ? "default" : "outline"}
-              onClick={() => setCustomerMode("new")}
+              onClick={() => {
+                setCustomerMode("new");
+                setSlot(null);
+              }}
             >
               New customer
             </Button>
@@ -172,8 +226,9 @@ export function ManualBookingForm({
               value={clientId}
               onChange={(e) => {
                 setClientId(e.target.value);
-                setPetId("");
-                setDogMode("existing");
+                // Reset dogs to a fresh single line (their pets differ).
+                setDogs([blankLine()]);
+                setSlot(null);
               }}
               className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             >
@@ -204,88 +259,121 @@ export function ManualBookingForm({
         )}
       </section>
 
-      {/* Dog */}
-      <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
-        <h2 className="text-sm font-semibold">Dog</h2>
-        {customerMode === "existing" && clientPets.length > 0 && (
-          <div className="mt-3 flex gap-2">
-            <Button type="button" size="sm" variant={effectiveDogMode === "existing" ? "default" : "outline"} onClick={() => setDogMode("existing")}>
-              One of their dogs
-            </Button>
-            <Button type="button" size="sm" variant={effectiveDogMode === "new" ? "default" : "outline"} onClick={() => setDogMode("new")}>
-              Add a new dog
-            </Button>
-          </div>
-        )}
+      {/* Dogs — one block per dog, each with its own services. */}
+      {dogs.map((line, index) => {
+        const mode = effectiveModeFor(line);
+        const totals = lineTotals(line);
+        return (
+          <section key={line.key} className="rounded-xl border border-border bg-card p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Dog {dogs.length > 1 ? index + 1 : ""}</h2>
+              {dogs.length > 1 && (
+                <Button type="button" size="sm" variant="ghost" onClick={() => removeDog(line.key)} className="text-muted-foreground">
+                  <Trash2 className="h-4 w-4" /> Remove
+                </Button>
+              )}
+            </div>
 
-        {effectiveDogMode === "existing" ? (
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {clientPets.map((pet) => (
-              <SelectableCard
-                key={pet.id}
-                selected={petId === pet.id}
-                onClick={() => setPetId(pet.id)}
-                title={pet.name}
-                description={pet.breed ?? undefined}
-                meta={SIZE_BAND_LABELS[normalizeSize(pet.sizeBand)]}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 space-y-4">
-            <div className="space-y-1.5">
-              <Label>Size</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {(["SMALL", "MEDIUM", "LARGE"] as SizeBand[]).map((band) => (
-                  <SelectableCard key={band} selected={newDogSize === band} onClick={() => setNewDogSize(band)} title={SIZE_BAND_LABELS[band]} />
+            {customerMode === "existing" && clientPets.length > 0 && (
+              <div className="mt-3 flex gap-2">
+                <Button type="button" size="sm" variant={mode === "existing" ? "default" : "outline"} onClick={() => updateLine(line.key, { mode: "existing" })}>
+                  One of their dogs
+                </Button>
+                <Button type="button" size="sm" variant={mode === "new" ? "default" : "outline"} onClick={() => updateLine(line.key, { mode: "new" })}>
+                  Add a new dog
+                </Button>
+              </div>
+            )}
+
+            {mode === "existing" ? (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {clientPets.map((pet) => (
+                  <SelectableCard
+                    key={pet.id}
+                    selected={line.petId === pet.id}
+                    onClick={() => updateLine(line.key, { petId: pet.id })}
+                    title={pet.name}
+                    description={pet.breed ?? undefined}
+                    meta={SIZE_BAND_LABELS[normalizeSize(pet.sizeBand)]}
+                  />
                 ))}
               </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="mb-dog-name">Dog&apos;s name (optional)</Label>
-                <Input id="mb-dog-name" value={newDogName} onChange={(e) => setNewDogName(e.target.value)} />
+            ) : (
+              <div className="mt-3 space-y-4">
+                <div className="space-y-1.5">
+                  <Label>Size</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["SMALL", "MEDIUM", "LARGE"] as SizeBand[]).map((band) => (
+                      <SelectableCard key={band} selected={line.newSize === band} onClick={() => updateLine(line.key, { newSize: band })} title={SIZE_BAND_LABELS[band]} />
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`${line.key}-name`}>Dog&apos;s name (optional)</Label>
+                    <Input id={`${line.key}-name`} value={line.newName} onChange={(e) => updateLine(line.key, { newName: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`${line.key}-breed`}>Breed (optional)</Label>
+                    <Input id={`${line.key}-breed`} value={line.newBreed} onChange={(e) => updateLine(line.key, { newBreed: e.target.value })} />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="mb-dog-breed">Breed (optional)</Label>
-                <Input id="mb-dog-breed" value={newDogBreed} onChange={(e) => setNewDogBreed(e.target.value)} />
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
+            )}
 
-      {/* Services */}
-      <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
-        <h2 className="text-sm font-semibold">Services</h2>
-        <p className="text-xs text-muted-foreground">Pick one or more — they&apos;re done in the same visit.</p>
-        <div className="mt-3 space-y-2.5">
-          {services.map((service) => {
-            const from = fromPriceCents(service);
-            return (
-              <SelectableCard
-                key={service.id}
-                selected={serviceIds.includes(service.id)}
-                onClick={() => toggleService(service.id)}
-                title={service.name}
-                meta={from !== null ? `From ${formatCents(from)}` : ""}
-              />
-            );
-          })}
-        </div>
-        {serviceIds.length > 0 && (
-          <p className="mt-3 text-sm font-medium">
-            Total: {anyOnInspection ? `${formatCents(totalCents)} + priced on inspection` : formatCents(totalCents)}
-          </p>
-        )}
-      </section>
+            {/* Services for THIS dog */}
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold">Services for this dog</h3>
+              <p className="text-xs text-muted-foreground">Pick one or more — done in the same visit.</p>
+              <div className="mt-3 space-y-2.5">
+                {services.map((service) => {
+                  const from = fromPriceCents(service);
+                  const selected = line.serviceIds.includes(service.id);
+                  return (
+                    <SelectableCard
+                      key={service.id}
+                      selected={selected}
+                      onClick={() =>
+                        updateLine(line.key, {
+                          serviceIds: selected ? line.serviceIds.filter((x) => x !== service.id) : [...line.serviceIds, service.id],
+                        })
+                      }
+                      title={service.name}
+                      meta={from !== null ? `From ${formatCents(from)}` : ""}
+                    />
+                  );
+                })}
+              </div>
+              {line.serviceIds.length > 0 && (
+                <p className="mt-3 text-sm font-medium">
+                  Subtotal: {totals.onInspection ? `${formatCents(totals.cents)} + priced on inspection` : formatCents(totals.cents)}
+                </p>
+              )}
+            </div>
+          </section>
+        );
+      })}
+
+      {dogs.length < 6 && (
+        <Button type="button" variant="outline" onClick={addDog} className="w-full">
+          <Plus className="h-4 w-4" /> Add another dog
+        </Button>
+      )}
+
+      {dogs.length > 1 && (
+        <p className="text-sm font-semibold">
+          Total: {grand.onInspection ? `${formatCents(grand.cents)} + priced on inspection` : formatCents(grand.cents)}
+        </p>
+      )}
 
       {/* Date & time */}
       <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold">Date &amp; time</h2>
-        <p className="text-xs text-muted-foreground">Pick a drop-off slot. Closed days are greyed out.</p>
+        <p className="text-xs text-muted-foreground">
+          Pick a drop-off slot. {dogs.length > 1 ? "The dogs are booked back-to-back from this time. " : ""}Closed days are greyed out.
+        </p>
         <div className="mt-4">
-          <TimeSlotPicker durationMinutes={durationMinutes} closedWeekdays={closedWeekdays} value={slot} onChange={setSlot} />
+          <TimeSlotPicker durationMinutes={grand.duration} closedWeekdays={closedWeekdays} value={slot} onChange={setSlot} />
         </div>
       </section>
 

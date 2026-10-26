@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ExportCsvButton } from "@/components/admin/export-csv-button";
+import { LinkedTableRow } from "@/components/admin/linked-table-row";
 
 export const metadata: Metadata = { title: "Bookkeeping | Admin" };
 
@@ -36,6 +37,7 @@ export default async function BookkeepingPage() {
     amountCents: number;
     status: string;
     counts: boolean; // toward revenue (i.e. not cancelled)
+    href: string; // where clicking the row opens the full details
   };
 
   const records: Record[] = [
@@ -47,6 +49,7 @@ export default async function BookkeepingPage() {
       amountCents: a.totalPriceCents,
       status: a.status,
       counts: a.status !== "CANCELLED" && a.status !== "NO_SHOW",
+      href: `/admin/appointments/${a.id}`,
     })),
     ...orders.map((o): Record => ({
       date: o.createdAt,
@@ -56,6 +59,7 @@ export default async function BookkeepingPage() {
       amountCents: o.totalCents,
       status: o.status,
       counts: o.status !== "CANCELLED",
+      href: `/admin/orders#order-${o.id}`,
     })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -81,7 +85,7 @@ export default async function BookkeepingPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Bookkeeping</h1>
           <p className="mt-1 text-muted-foreground">
-            Every appointment and store order, compiled automatically. View-only — nothing here changes your data.
+            Every appointment and store order, compiled automatically. Click any row to open its full details. View-only — nothing here changes your data.
           </p>
         </div>
         {records.length > 0 && <ExportCsvButton rows={csvRows} filename={`trims-and-bubbles-records-${thisMonth}.csv`} />}
@@ -115,7 +119,7 @@ export default async function BookkeepingPage() {
               </TableRow>
             ) : (
               records.map((r, i) => (
-                <TableRow key={i} className={r.counts ? "" : "text-muted-foreground/60"}>
+                <LinkedTableRow key={i} href={r.href} className={r.counts ? "" : "text-muted-foreground/60"}>
                   <TableCell className="whitespace-nowrap">{dateFmt.format(r.date)}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">{r.type}</Badge>
@@ -126,7 +130,7 @@ export default async function BookkeepingPage() {
                     {r.counts ? formatCents(r.amountCents) : <span className="line-through">{formatCents(r.amountCents)}</span>}
                   </TableCell>
                   <TableCell className="text-xs">{r.status.replace(/_/g, " ").toLowerCase()}</TableCell>
-                </TableRow>
+                </LinkedTableRow>
               ))
             )}
           </TableBody>

@@ -266,7 +266,7 @@ export default async function PortalAppointmentDetailPage({
                 <PayBalanceButton appointmentId={apt.id} balanceOwingCents={balanceOwingCents} />
               ) : (
                 <p className="rounded-lg bg-background px-3 py-2 text-xs text-muted-foreground">
-                  Online balance payment is coming soon — the team can take payment in person, or get in touch to arrange it sooner.
+                  Online balance payment is coming soon — the team can take payment in person (card or cash), or get in touch to arrange it sooner.
                 </p>
               )}
             </div>
