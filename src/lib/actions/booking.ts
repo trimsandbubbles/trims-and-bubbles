@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/session";
 import { getBusinessSettings } from "@/lib/services-data";
 import { checkSlotStillOpen, isRequestedSlotBookable } from "@/lib/availability-data";
-import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
+import { sendEmail, escapeHtml, emailLayout, BOOKING_HIGHLIGHTS_HTML, BOOKING_HIGHLIGHTS_TEXT } from "@/lib/email";
 import { resolveOwnerEmail } from "@/lib/owner-email";
 import { formatCents } from "@/lib/format";
 
@@ -87,8 +87,8 @@ type ResolvedLine = {
  * still guards every row, and the whole set is created in one transaction so a
  * race can never leave a half-booked group.
  *
- * Cash-only: appointments are CONFIRMED immediately and paid in person (no
- * online payment / deposit for now).
+ * Paid in person: appointments are CONFIRMED immediately and paid on the day
+ * by card or cash (no online payment / deposit for now).
  */
 export async function createBooking(rawInput: BookingInput): Promise<BookingResult> {
   const parsed = bookingSchema.safeParse(rawInput);
@@ -374,24 +374,25 @@ async function notifyNewBooking(n: NewBookingNotification): Promise<void> {
   const addressText = n.bookingAddress ? ` Drop-off address: ${n.bookingAddress}.` : "";
   const amountHtml =
     n.totalCents > 0
-      ? `<p style="margin:0 0 12px;">Amount to pay on the day: <strong>${escapeHtml(formatCents(n.totalCents))}</strong> (cash)</p>`
+      ? `<p style="margin:0 0 12px;">Amount to pay on the day: <strong>${escapeHtml(formatCents(n.totalCents))}</strong></p>`
       : "";
-  const amountText = n.totalCents > 0 ? ` Amount to pay on the day: ${formatCents(n.totalCents)} (cash).` : "";
+  const amountText = n.totalCents > 0 ? ` Amount to pay on the day: ${formatCents(n.totalCents)}.` : "";
   const customerBody = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(n.customerName)},</p>
     <p style="margin:0 0 12px;">Thanks for booking with Trims &amp; Bubbles! 🐾</p>
+    ${BOOKING_HIGHLIGHTS_HTML}
     <p style="margin:0 0 6px;">When: <strong>${escapeHtml(when)}</strong></p>
     ${listHtml}
     ${amountHtml}
     ${addressHtml}
-    <p style="margin:0 0 12px;">Payment is in person on the day (cash). See you soon!</p>
+    <p style="margin:0 0 12px;">See you soon!</p>
     <p style="margin:0;">— The Trims &amp; Bubbles team</p>
   `;
   await sendEmail({
     to: n.customerEmail,
     subject: `You're booked in — ${when}`,
     html: emailLayout(customerBody),
-    text: `Hi ${n.customerName}, thanks for booking with Trims & Bubbles! ${when}. ${listText}.${amountText}${addressText} Payment in person (cash). See you soon!`,
+    text: `Hi ${n.customerName}, thanks for booking with Trims & Bubbles! ${when}. ${listText}.${amountText}${addressText} ${BOOKING_HIGHLIGHTS_TEXT} See you soon!`,
     // Replies go to the owner's monitored inbox (the from-domain can't receive).
     replyTo: resolveOwnerEmail(n.ownerEmail),
   });

@@ -94,3 +94,14 @@ export function emailLayout(bodyHtml: string): string {
   </div>
 </div>`;
 }
+
+/** The prominent "good to know" box shown in customer booking confirmation
+ * and reminder emails: cash preferred + how long a visit takes. */
+export const BOOKING_HIGHLIGHTS_HTML = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;border-collapse:separate;">
+  <tr><td style="background:#ffffff;border:2px solid #DA5B4A;border-radius:12px;padding:14px 16px;">
+    <p style="margin:0 0 10px;font-size:18px;font-weight:700;color:#1E1816;">💵 Cash preferred</p>
+    <p style="margin:0;font-size:16px;color:#1E1816;">⏱️ <strong>Allow 2–3 hours</strong> — it depends on your dog's coat.</p>
+  </td></tr>
+</table>`;
+
+export const BOOKING_HIGHLIGHTS_TEXT = "Cash preferred. Allow 2–3 hours — it depends on your dog's coat.";

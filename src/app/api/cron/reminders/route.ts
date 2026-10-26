@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { sydneyCalendarDayRange } from "@/lib/availability-data";
 import { getBusinessSettings } from "@/lib/services-data";
 import { getOwnerEmail } from "@/lib/owner-email";
-import { sendEmail, escapeHtml, emailLayout } from "@/lib/email";
+import { sendEmail, escapeHtml, emailLayout, BOOKING_HIGHLIGHTS_HTML, BOOKING_HIGHLIGHTS_TEXT } from "@/lib/email";
 import { formatCents } from "@/lib/format";
 
 /**
@@ -51,10 +52,20 @@ function isEmailable(email: string | null | undefined): email is string {
 
 const ACTIVE_STATUSES = ["CONFIRMED", "PENDING_PAYMENT", "IN_PROGRESS"] as const;
 
+/** Compares the Authorization header to the expected Bearer token in constant
+ * time, so the secret can't be guessed via response-timing. Fails closed when
+ * the header is absent or a different length. */
+function bearerMatches(authHeader: string | null, secret: string): boolean {
+  if (!authHeader) return false;
+  const provided = Buffer.from(authHeader);
+  const expected = Buffer.from(`Bearer ${secret}`);
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
+}
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const auth = request.headers.get("authorization");
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!secret || !bearerMatches(auth, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -190,26 +201,27 @@ async function sendReminder(n: {
   const listText = n.dogs.map((d) => `${d.petName}: ${d.services.join(" + ")}`).join("; ");
   const amountHtml =
     n.totalCents > 0
-      ? `<p style="margin:0 0 12px;">Amount to pay on the day: <strong>${escapeHtml(formatCents(n.totalCents))}</strong> (cash)</p>`
+      ? `<p style="margin:0 0 12px;">Amount to pay on the day: <strong>${escapeHtml(formatCents(n.totalCents))}</strong></p>`
       : "";
-  const amountText = n.totalCents > 0 ? ` Amount to pay on the day: ${formatCents(n.totalCents)} (cash).` : "";
+  const amountText = n.totalCents > 0 ? ` Amount to pay on the day: ${formatCents(n.totalCents)}.` : "";
   const addressHtml = n.address ? `<p style="margin:0 0 12px;">Drop-off address: <strong>${escapeHtml(n.address)}</strong></p>` : "";
   const addressText = n.address ? ` Drop-off address: ${n.address}.` : "";
   const body = `
     <p style="margin:0 0 12px;">Hi ${escapeHtml(n.customerName)},</p>
     <p style="margin:0 0 12px;">Just a friendly reminder — your Trims &amp; Bubbles appointment is coming up soon. 🐾</p>
+    ${BOOKING_HIGHLIGHTS_HTML}
     <p style="margin:0 0 6px;">When: <strong>${escapeHtml(when)}</strong></p>
     ${listHtml}
     ${amountHtml}
     ${addressHtml}
-    <p style="margin:0 0 12px;">Payment is in person on the day (cash). If anything's changed, just reply to this email and we'll sort it out.</p>
+    <p style="margin:0 0 12px;">If anything's changed, just reply to this email and we'll sort it out.</p>
     <p style="margin:0;">See you soon,<br/>The Trims &amp; Bubbles team</p>
   `;
   return sendEmail({
     to: n.to,
     subject: `Reminder: your appointment on ${when}`,
     html: emailLayout(body),
-    text: `Hi ${n.customerName}, a friendly reminder your Trims & Bubbles appointment is coming up soon — ${when}. ${listText}.${amountText}${addressText} Payment in person (cash). See you soon!`,
+    text: `Hi ${n.customerName}, a friendly reminder your Trims & Bubbles appointment is coming up soon — ${when}. ${listText}.${amountText}${addressText} ${BOOKING_HIGHLIGHTS_TEXT} See you soon!`,
     replyTo: n.replyTo,
   });
 }
